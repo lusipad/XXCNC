@@ -28,8 +28,8 @@ protected:
 
 // 直线插补基础测试
 TEST_F(InterpolationEngineTest, LinearInterpolationBasic) {
-    InterpolationEngine::Point start{0.0, 0.0, 0.0};
-    InterpolationEngine::Point end{10.0, 10.0, 0.0};
+    Point start{0.0, 0.0, 0.0};
+    Point end{10.0, 10.0, 0.0};
 
     auto points = engine->linearInterpolation(start, end, params);
     ASSERT_FALSE(points.empty());
@@ -53,9 +53,9 @@ TEST_F(InterpolationEngineTest, LinearInterpolationBasic) {
 
 // 圆弧插补基础测试
 TEST_F(InterpolationEngineTest, CircularInterpolationBasic) {
-    InterpolationEngine::Point start{0.0, 0.0, 0.0};
-    InterpolationEngine::Point end{10.0, 0.0, 0.0};
-    InterpolationEngine::Point center{5.0, 5.0, 0.0};
+    Point start{0.0, 0.0, 0.0};
+    Point end{10.0, 0.0, 0.0};
+    Point center{5.0, 5.0, 0.0};
     bool isClockwise = true;
 
     auto points = engine->circularInterpolation(start, end, center, isClockwise, params);
@@ -99,40 +99,42 @@ TEST_F(InterpolationEngineTest, VelocityProfileTest) {
 
 // 路径优化测试
 TEST_F(InterpolationEngineTest, PathOptimizationTest) {
-    std::vector<InterpolationEngine::Point> path;
+    std::vector<Point> path;
     // 创建一个包含冗余点的路径
-    for (int i = 0; i <= 100; ++i) {
+    for (size_t i = 0; i <= 100; ++i) {
         double t = i / 100.0;
-        path.push_back(InterpolationEngine::Point(
+        path.push_back(Point(
             10.0 * t,
             10.0 * t,
             0.0
         ));
     }
 
-    size_t originalSize = path.size();
-    engine->optimizePath(path, params);
+    // 优化路径
+    auto optimizedPath = engine->optimizePath(path, params);
 
-    // 验证路径被优化（点数减少）
-    EXPECT_LT(path.size(), originalSize);
+    // 验证优化后的路径点数应该小于原始路径
+    EXPECT_LT(optimizedPath.size(), path.size());
 
     // 验证起点和终点保持不变
-    EXPECT_DOUBLE_EQ(path.front().x, 0.0);
-    EXPECT_DOUBLE_EQ(path.front().y, 0.0);
-    EXPECT_DOUBLE_EQ(path.back().x, 10.0);
-    EXPECT_DOUBLE_EQ(path.back().y, 10.0);
+    EXPECT_DOUBLE_EQ(optimizedPath.front().x, path.front().x);
+    EXPECT_DOUBLE_EQ(optimizedPath.front().y, path.front().y);
+    EXPECT_DOUBLE_EQ(optimizedPath.front().z, path.front().z);
+    EXPECT_DOUBLE_EQ(optimizedPath.back().x, path.back().x);
+    EXPECT_DOUBLE_EQ(optimizedPath.back().y, path.back().y);
+    EXPECT_DOUBLE_EQ(optimizedPath.back().z, path.back().z);
 }
 
 // 边界条件测试
 TEST_F(InterpolationEngineTest, EdgeCases) {
-    InterpolationEngine::Point point{0.0, 0.0, 0.0};
+    Point point{0.0, 0.0, 0.0};
 
     // 测试起点和终点重合的情况
     auto points = engine->linearInterpolation(point, point, params);
     EXPECT_EQ(points.size(), 1); // 应该只包含一个点
 
     // 测试极小距离的移动
-    InterpolationEngine::Point nearPoint{0.001, 0.001, 0.0};
+    Point nearPoint{0.001, 0.001, 0.0};
     points = engine->linearInterpolation(point, nearPoint, params);
     ASSERT_FALSE(points.empty());
     EXPECT_LE(points.size(), 3); // 应该只需要很少的分段
@@ -140,8 +142,8 @@ TEST_F(InterpolationEngineTest, EdgeCases) {
 
 // 性能测试
 TEST_F(InterpolationEngineTest, Performance) {
-    InterpolationEngine::Point start{0.0, 0.0, 0.0};
-    InterpolationEngine::Point end{1000.0, 1000.0, 0.0};
+    Point start{0.0, 0.0, 0.0};
+    Point end{1000.0, 1000.0, 0.0};
     params.feedRate = 5000.0; // 高速进给
 
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -164,9 +166,9 @@ TEST_F(InterpolationEngineTest, Performance) {
 
 // 错误处理测试
 TEST_F(InterpolationEngineTest, ErrorHandling) {
-    InterpolationEngine::Point start{0.0, 0.0, 0.0};
-    InterpolationEngine::Point end{10.0, 10.0, 0.0};
-    InterpolationEngine::Point center{5.0, 5.0, 0.0};
+    Point start{0.0, 0.0, 0.0};
+    Point end{10.0, 10.0, 0.0};
+    Point center{5.0, 5.0, 0.0};
 
     // 测试非法进给速度
     params.feedRate = -1.0;

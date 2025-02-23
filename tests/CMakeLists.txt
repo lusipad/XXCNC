@@ -9,6 +9,8 @@ add_executable(xxcnc_tests
     core/CoreControllerTest.cpp
     # 插补引擎测试
     core/InterpolationEngineTest.cpp
+    # G代码解析器测试
+    core/GCodeParserTest.cpp
 )
 
 # 链接测试库

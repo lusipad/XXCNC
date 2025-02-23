@@ -1,2 +1,18 @@
 # CMake generation dependency list for this directory.
+C:/Program Files/CMake/share/cmake-3.31/Modules/CMakeFindDependencyMacro.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/CheckCXXSourceCompiles.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/CheckIncludeFileCXX.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/CheckLibraryExists.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/FindPackageHandleStandardArgs.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/FindPackageMessage.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/FindThreads.cmake
+C:/Program Files/CMake/share/cmake-3.31/Modules/Internal/CheckSourceCompiles.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/fmt/fmt-config-version.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/fmt/fmt-config.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/fmt/fmt-targets-release.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/fmt/fmt-targets.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/spdlog/spdlogConfig.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/spdlog/spdlogConfigTargets-release.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/spdlog/spdlogConfigTargets.cmake
+C:/Users/lus/miniconda3/Library/lib/cmake/spdlog/spdlogConfigVersion.cmake
 D:/Repos/XXCNC/src/CMakeLists.txt

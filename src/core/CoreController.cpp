@@ -1,4 +1,4 @@
-#include "xxcnc/core/CoreController.h"
+﻿#include "xxcnc/core/CoreController.h"
 #include <spdlog/spdlog.h>
 
 namespace xxcnc {

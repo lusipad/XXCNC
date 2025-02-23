@@ -4,6 +4,12 @@
     <ClCompile Include="D:\Repos\XXCNC\src\core\CoreController.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Repos\XXCNC\src\core\gcode\GCodeParser.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Repos\XXCNC\src\core\motion\InterpolationEngine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="D:\Repos\XXCNC\src\CMakeLists.txt" />

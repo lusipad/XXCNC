@@ -1,9 +1,16 @@
 # 源代码编译配置
 
+# 查找依赖包
+find_package(spdlog REQUIRED)
+
 # 添加库目标
 add_library(xxcnc
     # 核心控制模块
     core/CoreController.cpp
+    # G代码解析器
+    core/gcode/GCodeParser.cpp
+    # 插补引擎
+    core/motion/InterpolationEngine.cpp
 )
 
 # 设置包含目录
@@ -12,7 +19,19 @@ target_include_directories(xxcnc
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# 链接依赖库
+target_link_libraries(xxcnc
+    PRIVATE
+        spdlog::spdlog
+)
+
+# 添加编译选项
+target_compile_options(xxcnc
+    PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/wd4996>  # 禁用 C4996 警告
 )
 
 # 设置库属性

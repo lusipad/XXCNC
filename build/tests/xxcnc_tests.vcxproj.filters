@@ -4,6 +4,12 @@
     <ClCompile Include="D:\Repos\XXCNC\tests\core\CoreControllerTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="D:\Repos\XXCNC\tests\core\InterpolationEngineTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Repos\XXCNC\tests\core\GCodeParserTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="D:\Repos\XXCNC\tests\CMakeLists.txt" />

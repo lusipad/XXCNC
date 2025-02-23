@@ -21,23 +21,27 @@ struct Point {
 class InterpolationEngine {
 public:
     struct InterpolationParams {
-        double feedRate;        // 进给速度 (mm/min)
-        double acceleration;    // 加速度 (mm/s^2)
-        double deceleration;    // 减速度 (mm/s^2)
-        double jerk;           // 加加速度 (mm/s^3)
+        double feedRate;        // Feed rate (mm/min)
+        double maxVelocity;     // Maximum velocity (mm/s)
+        double acceleration;    // Acceleration (mm/s^2)
+        double deceleration;    // Deceleration (mm/s^2)
+        double jerk;           // Jerk (mm/s^3)
+        
+        InterpolationParams(double fr = 0, double mv = 0, double acc = 0, double dec = 0, double j = 0)
+            : feedRate(fr), maxVelocity(mv), acceleration(acc), deceleration(dec), jerk(j) {}
     };
 
     InterpolationEngine();
     ~InterpolationEngine();
 
-    // 直线插补
+    // Linear interpolation
     std::vector<Point> linearInterpolation(
         const Point& start,
         const Point& end,
         const InterpolationParams& params
     );
 
-    // 圆弧插补
+    // Circular interpolation
     std::vector<Point> circularInterpolation(
         const Point& start,
         const Point& end,
@@ -46,24 +50,24 @@ public:
         const InterpolationParams& params
     );
 
-    // 速度规划
+    // Velocity profile planning
     void planVelocityProfile(
         double distance,
         const InterpolationParams& params,
         std::vector<double>& velocities
     );
 
-    // 路径优化
+    // Path optimization
     void optimizePath(
         std::vector<Point>& path,
         const InterpolationParams& params
     );
 
 private:
-    // 计算两点间距离
+    // Calculate distance between two points
     double calculateDistance(const Point& p1, const Point& p2);
     
-    // 计算圆弧角度
+    // Calculate arc angle
     double calculateArcAngle(
         const Point& start,
         const Point& end,
@@ -71,7 +75,7 @@ private:
         bool isClockwise
     );
 
-    // Douglas-Peucker算法递归实现
+    // Douglas-Peucker algorithm recursive implementation
     void douglasPeuckerRecursive(
         const std::vector<Point>& points,
         size_t start,
@@ -80,7 +84,7 @@ private:
         std::vector<bool>& keep
     );
 
-    // 计算点到直线的距离
+    // Calculate point to line distance
     double pointToLineDistance(
         const Point& point,
         const Point& lineStart,
