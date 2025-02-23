@@ -1,0 +1,35 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  analyze:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup CPPCheck
+      run: |
+        choco install cppcheck -y
+        echo "$env:PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Run CPPCheck
+      run: cppcheck --enable=all --error-exitcode=1 --suppress=missingInclude src/
+
+    - name: Setup ClangFormat
+      run: |
+        choco install llvm -y
+        echo "$env:PATH" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Check Code Format
+      run: |
+        $files = Get-ChildItem -Path src -Recurse -Include *.cpp,*.h
+        foreach ($file in $files) {
+          clang-format -style=file -i $file.FullName
+        }
+        git diff --exit-code
