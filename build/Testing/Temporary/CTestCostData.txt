@@ -1,0 +1,25 @@
+CoreControllerTest.InitialStateIsIdle 2 0.0091014
+CoreControllerTest.InitializeReturnsTrue 2 0.00922165
+CoreControllerTest.StartReturnsTrue 2 0.010049
+CoreControllerTest.StopReturnsTrue 2 0.00943455
+CoreControllerTest.InitialStateIsIdle 2 0.0091014
+CoreControllerTest.InitializeReturnsTrue 2 0.00922165
+CoreControllerTest.StartReturnsTrue 2 0.010049
+CoreControllerTest.StopReturnsTrue 2 0.00943455
+CoreControllerTest.InitialStateIsIdle 2 0.0091014
+CoreControllerTest.InitializeReturnsTrue 2 0.00922165
+CoreControllerTest.StartReturnsTrue 2 0.010049
+CoreControllerTest.StopReturnsTrue 2 0.00943455
+CoreControllerTest.InitialStateIsIdle 2 0.0091014
+CoreControllerTest.InitializeReturnsTrue 2 0.00922165
+CoreControllerTest.StartReturnsTrue 2 0.010049
+CoreControllerTest.StopReturnsTrue 2 0.00943455
+CoreControllerTest.InitialStateIsIdle 2 0.0091014
+CoreControllerTest.InitializeReturnsTrue 2 0.00922165
+CoreControllerTest.StartReturnsTrue 2 0.010049
+CoreControllerTest.StopReturnsTrue 2 0.00943455
+CoreControllerTest.InitialStateIsIdle 1 0.0203135
+CoreControllerTest.InitializeReturnsTrue 1 0.0158702
+CoreControllerTest.StartReturnsTrue 1 0.017196
+CoreControllerTest.StopReturnsTrue 1 0.0182086
+---

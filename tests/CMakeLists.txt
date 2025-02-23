@@ -7,18 +7,9 @@ find_package(GTest REQUIRED)
 add_executable(xxcnc_tests
     # 核心控制模块测试
     core/CoreControllerTest.cpp
+    # 插补引擎测试
+    core/InterpolationEngineTest.cpp
 )
-
-# 链接测试库
-target_link_libraries(xxcnc_tests
-    PRIVATE
-        xxcnc
-        GTest::GTest
-        GTest::Main
-)
-
-# 添加测试
-gtest_discover_tests(xxcnc_tests)
 
 # 链接测试库
 target_link_libraries(xxcnc_tests

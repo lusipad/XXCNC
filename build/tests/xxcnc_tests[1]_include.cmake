@@ -1,0 +1,5 @@
+if(EXISTS "D:/Repos/XXCNC/build/tests/xxcnc_tests[1]_tests.cmake")
+  include("D:/Repos/XXCNC/build/tests/xxcnc_tests[1]_tests.cmake")
+else()
+  add_test(xxcnc_tests_NOT_BUILT xxcnc_tests_NOT_BUILT)
+endif()

@@ -1,0 +1,10 @@
+D:/Repos/XXCNC/build/CMakeFiles/RUN_TESTS.dir
+D:/Repos/XXCNC/build/CMakeFiles/INSTALL.dir
+D:/Repos/XXCNC/build/CMakeFiles/ALL_BUILD.dir
+D:/Repos/XXCNC/build/CMakeFiles/ZERO_CHECK.dir
+D:/Repos/XXCNC/build/src/CMakeFiles/xxcnc.dir
+D:/Repos/XXCNC/build/src/CMakeFiles/RUN_TESTS.dir
+D:/Repos/XXCNC/build/src/CMakeFiles/INSTALL.dir
+D:/Repos/XXCNC/build/tests/CMakeFiles/xxcnc_tests.dir
+D:/Repos/XXCNC/build/tests/CMakeFiles/RUN_TESTS.dir
+D:/Repos/XXCNC/build/tests/CMakeFiles/INSTALL.dir
