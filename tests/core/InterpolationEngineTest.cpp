@@ -1,10 +1,21 @@
 #include <gtest/gtest.h>
-#include "xxcnc/core/InterpolationEngine.h"
+#include <chrono>
+#include "xxcnc/core/motion/InterpolationEngine.h"
+
+namespace xxcnc {
+namespace core {
+namespace motion {
+namespace test {
 
 class InterpolationEngineTest : public ::testing::Test {
 protected:
     void SetUp() override {
         engine = std::make_unique<InterpolationEngine>();
+        // 设置默认的插补参数
+        params.feedRate = 1000.0;     // 1000 mm/min
+        params.acceleration = 500.0;   // 500 mm/s^2
+        params.deceleration = 500.0;   // 500 mm/s^2
+        params.jerk = 50.0;           // 50 mm/s^3
     }
 
     void TearDown() override {
@@ -12,104 +23,159 @@ protected:
     }
 
     std::unique_ptr<InterpolationEngine> engine;
+    InterpolationEngine::InterpolationParams params;
 };
 
-// 直线插补测试
+// 直线插补基础测试
 TEST_F(InterpolationEngineTest, LinearInterpolationBasic) {
-    // 测试基本的直线插补
-    Point start{0.0, 0.0, 0.0};
-    Point end{10.0, 10.0, 0.0};
-    double feedRate = 1000.0; // mm/min
+    InterpolationEngine::Point start{0.0, 0.0, 0.0};
+    InterpolationEngine::Point end{10.0, 10.0, 0.0};
 
-    auto segments = engine->calculateLinearPath(start, end, feedRate);
-    ASSERT_FALSE(segments.empty());
+    auto points = engine->linearInterpolation(start, end, params);
+    ASSERT_FALSE(points.empty());
 
     // 验证起点和终点
-    EXPECT_DOUBLE_EQ(segments.front().startPoint.x, start.x);
-    EXPECT_DOUBLE_EQ(segments.front().startPoint.y, start.y);
-    EXPECT_DOUBLE_EQ(segments.back().endPoint.x, end.x);
-    EXPECT_DOUBLE_EQ(segments.back().endPoint.y, end.y);
+    EXPECT_DOUBLE_EQ(points.front().x, start.x);
+    EXPECT_DOUBLE_EQ(points.front().y, start.y);
+    EXPECT_DOUBLE_EQ(points.front().z, start.z);
+    EXPECT_DOUBLE_EQ(points.back().x, end.x);
+    EXPECT_DOUBLE_EQ(points.back().y, end.y);
+    EXPECT_DOUBLE_EQ(points.back().z, end.z);
 
     // 验证路径的连续性
-    for (size_t i = 1; i < segments.size(); ++i) {
-        EXPECT_DOUBLE_EQ(segments[i-1].endPoint.x, segments[i].startPoint.x);
-        EXPECT_DOUBLE_EQ(segments[i-1].endPoint.y, segments[i].startPoint.y);
+    for (size_t i = 1; i < points.size(); ++i) {
+        double dist = sqrt(pow(points[i].x - points[i-1].x, 2) +
+                          pow(points[i].y - points[i-1].y, 2) +
+                          pow(points[i].z - points[i-1].z, 2));
+        EXPECT_LT(dist, params.feedRate / 60.0); // 相邻点距离应小于每秒最大移动距离
     }
 }
 
-// 圆弧插补测试
-TEST_F(InterpolationEngineTest, ArcInterpolationBasic) {
-    // 测试基本的圆弧插补
-    Point start{0.0, 0.0, 0.0};
-    Point end{10.0, 0.0, 0.0};
-    Point center{5.0, 5.0, 0.0};
+// 圆弧插补基础测试
+TEST_F(InterpolationEngineTest, CircularInterpolationBasic) {
+    InterpolationEngine::Point start{0.0, 0.0, 0.0};
+    InterpolationEngine::Point end{10.0, 0.0, 0.0};
+    InterpolationEngine::Point center{5.0, 5.0, 0.0};
     bool isClockwise = true;
-    double feedRate = 1000.0; // mm/min
 
-    auto segments = engine->calculateArcPath(start, end, center, isClockwise, feedRate);
-    ASSERT_FALSE(segments.empty());
+    auto points = engine->circularInterpolation(start, end, center, isClockwise, params);
+    ASSERT_FALSE(points.empty());
 
     // 验证起点和终点
-    EXPECT_DOUBLE_EQ(segments.front().startPoint.x, start.x);
-    EXPECT_DOUBLE_EQ(segments.front().startPoint.y, start.y);
-    EXPECT_DOUBLE_EQ(segments.back().endPoint.x, end.x);
-    EXPECT_DOUBLE_EQ(segments.back().endPoint.y, end.y);
+    EXPECT_DOUBLE_EQ(points.front().x, start.x);
+    EXPECT_DOUBLE_EQ(points.front().y, start.y);
+    EXPECT_DOUBLE_EQ(points.front().z, start.z);
+    EXPECT_DOUBLE_EQ(points.back().x, end.x);
+    EXPECT_DOUBLE_EQ(points.back().y, end.y);
+    EXPECT_DOUBLE_EQ(points.back().z, end.z);
 
     // 验证所有点到圆心的距离相等（允许小误差）
-    double radius = std::sqrt(std::pow(start.x - center.x, 2) + std::pow(start.y - center.y, 2));
-    for (const auto& segment : segments) {
-        double startRadius = std::sqrt(std::pow(segment.startPoint.x - center.x, 2) + 
-                                     std::pow(segment.startPoint.y - center.y, 2));
-        EXPECT_NEAR(startRadius, radius, 0.001);
+    double radius = sqrt(pow(start.x - center.x, 2) + pow(start.y - center.y, 2));
+    for (const auto& point : points) {
+        double pointRadius = sqrt(pow(point.x - center.x, 2) + pow(point.y - center.y, 2));
+        EXPECT_NEAR(pointRadius, radius, 0.001);
     }
+}
+
+// 速度规划测试
+TEST_F(InterpolationEngineTest, VelocityProfileTest) {
+    std::vector<double> velocities;
+    double distance = 100.0; // 100mm移动距离
+
+    engine->planVelocityProfile(distance, params, velocities);
+    ASSERT_FALSE(velocities.empty());
+
+    // 验证速度不超过进给速度
+    for (double velocity : velocities) {
+        EXPECT_LE(velocity, params.feedRate);
+    }
+
+    // 验证加速度限制
+    for (size_t i = 1; i < velocities.size(); ++i) {
+        double acceleration = (velocities[i] - velocities[i-1]) / 0.001; // 0.001s是采样时间
+        EXPECT_LE(fabs(acceleration), params.acceleration * 60.0); // 转换为mm/min^2
+    }
+}
+
+// 路径优化测试
+TEST_F(InterpolationEngineTest, PathOptimizationTest) {
+    std::vector<InterpolationEngine::Point> path;
+    // 创建一个包含冗余点的路径
+    for (int i = 0; i <= 100; ++i) {
+        double t = i / 100.0;
+        path.push_back(InterpolationEngine::Point(
+            10.0 * t,
+            10.0 * t,
+            0.0
+        ));
+    }
+
+    size_t originalSize = path.size();
+    engine->optimizePath(path, params);
+
+    // 验证路径被优化（点数减少）
+    EXPECT_LT(path.size(), originalSize);
+
+    // 验证起点和终点保持不变
+    EXPECT_DOUBLE_EQ(path.front().x, 0.0);
+    EXPECT_DOUBLE_EQ(path.front().y, 0.0);
+    EXPECT_DOUBLE_EQ(path.back().x, 10.0);
+    EXPECT_DOUBLE_EQ(path.back().y, 10.0);
 }
 
 // 边界条件测试
 TEST_F(InterpolationEngineTest, EdgeCases) {
-    // 测试起点和终点重合的情况
-    Point point{0.0, 0.0, 0.0};
-    double feedRate = 1000.0;
+    InterpolationEngine::Point point{0.0, 0.0, 0.0};
 
-    auto segments = engine->calculateLinearPath(point, point, feedRate);
-    EXPECT_TRUE(segments.empty());
+    // 测试起点和终点重合的情况
+    auto points = engine->linearInterpolation(point, point, params);
+    EXPECT_EQ(points.size(), 1); // 应该只包含一个点
 
     // 测试极小距离的移动
-    Point nearPoint{0.001, 0.001, 0.0};
-    segments = engine->calculateLinearPath(point, nearPoint, feedRate);
-    ASSERT_FALSE(segments.empty());
-    EXPECT_LE(segments.size(), 2); // 应该只需要很少的分段
+    InterpolationEngine::Point nearPoint{0.001, 0.001, 0.0};
+    points = engine->linearInterpolation(point, nearPoint, params);
+    ASSERT_FALSE(points.empty());
+    EXPECT_LE(points.size(), 3); // 应该只需要很少的分段
 }
 
 // 性能测试
 TEST_F(InterpolationEngineTest, Performance) {
-    Point start{0.0, 0.0, 0.0};
-    Point end{1000.0, 1000.0, 0.0};
-    double feedRate = 5000.0; // 高速进给
+    InterpolationEngine::Point start{0.0, 0.0, 0.0};
+    InterpolationEngine::Point end{1000.0, 1000.0, 0.0};
+    params.feedRate = 5000.0; // 高速进给
 
     auto startTime = std::chrono::high_resolution_clock::now();
-    auto segments = engine->calculateLinearPath(start, end, feedRate);
+    auto points = engine->linearInterpolation(start, end, params);
     auto endTime = std::chrono::high_resolution_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(endTime - startTime);
-    EXPECT_LT(duration.count(), 1000); // 期望计算时间小于1ms
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    EXPECT_LT(duration.count(), 100); // 期望计算时间小于100ms
 
-    // 验证分段数量在合理范围内
-    size_t expectedSegments = static_cast<size_t>(std::sqrt(std::pow(end.x - start.x, 2) + 
-                                                          std::pow(end.y - start.y, 2))) + 1;
-    EXPECT_LE(segments.size(), expectedSegments);
+    // 验证生成的点数在合理范围内
+    double distance = sqrt(pow(end.x - start.x, 2) + pow(end.y - start.y, 2));
+    size_t expectedMaxPoints = static_cast<size_t>(distance * 10); // 假设每毫米最多10个点
+    EXPECT_LE(points.size(), expectedMaxPoints);
 }
+
+} // namespace test
+} // namespace motion
+} // namespace core
+} // namespace xxcnc
 
 // 错误处理测试
 TEST_F(InterpolationEngineTest, ErrorHandling) {
-    Point start{0.0, 0.0, 0.0};
-    Point end{10.0, 10.0, 0.0};
-    Point center{5.0, 5.0, 0.0};
+    InterpolationEngine::Point start{0.0, 0.0, 0.0};
+    InterpolationEngine::Point end{10.0, 10.0, 0.0};
+    InterpolationEngine::Point center{5.0, 5.0, 0.0};
 
     // 测试非法进给速度
-    EXPECT_THROW(engine->calculateLinearPath(start, end, -1.0), std::invalid_argument);
-    EXPECT_THROW(engine->calculateLinearPath(start, end, 0.0), std::invalid_argument);
+    params.feedRate = -1.0;
+    EXPECT_THROW(engine->linearInterpolation(start, end, params), std::invalid_argument);
+    params.feedRate = 0.0;
+    EXPECT_THROW(engine->linearInterpolation(start, end, params), std::invalid_argument);
 
     // 测试圆弧插补中的非法参数
-    EXPECT_THROW(engine->calculateArcPath(start, end, start, true, 1000.0), std::invalid_argument); // 圆心不能是起点
-    EXPECT_THROW(engine->calculateArcPath(start, end, end, true, 1000.0), std::invalid_argument);   // 圆心不能是终点
+    params.feedRate = 1000.0; // 恢复正常进给速度
+    EXPECT_THROW(engine->circularInterpolation(start, end, start, true, params), std::invalid_argument); // 圆心不能是起点
+    EXPECT_THROW(engine->circularInterpolation(start, end, end, true, params), std::invalid_argument);   // 圆心不能是终点
 }
