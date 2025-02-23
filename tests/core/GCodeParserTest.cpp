@@ -1,10 +1,7 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 #include "xxcnc/core/gcode/GCodeParser.h"
 
-namespace xxcnc {
-namespace core {
-namespace gcode {
-namespace test {
+namespace xxcnc::core::gcode::test {
 
 class GCodeParserTest : public ::testing::Test {
 protected:
@@ -120,7 +117,4 @@ TEST_F(GCodeParserTest, ErrorHandling) {
     EXPECT_THROW(parser.parseLine("N-1 G01 X100"), ParserError);
 }
 
-} // namespace test
-} // namespace gcode
-} // namespace core
-} // namespace xxcnc
+} // namespace xxcnc::core::gcode::test

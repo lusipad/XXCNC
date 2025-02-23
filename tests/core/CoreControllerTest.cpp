@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 #include "xxcnc/core/CoreController.h"
 
-namespace xxcnc {
-namespace core {
-namespace test {
+namespace xxcnc::core::test {
 
 class CoreControllerTest : public ::testing::Test {
 protected:
@@ -47,7 +45,7 @@ TEST_F(CoreControllerTest, EmergencyStopSucceedsInAnyState) {
     EXPECT_TRUE(controller.emergencyStop());
     EXPECT_EQ(controller.getState(), SystemState::EMERGENCY_STOP);
 
-    // Reset state and test from running state
+    // 重置状态并从运行状态测试
     controller = CoreController();
     controller.start();
     EXPECT_TRUE(controller.emergencyStop());
@@ -61,7 +59,7 @@ TEST_F(CoreControllerTest, EmergencyStopFailsWhenAlreadyInEmergencyState) {
 
 TEST_F(CoreControllerTest, HomingSucceedsInIdleState) {
     EXPECT_TRUE(controller.startHoming());
-    // After homing completes, state should return to IDLE
+    // 归零完成后，状态应该返回到IDLE
     EXPECT_EQ(controller.getState(), SystemState::IDLE);
 }
 
@@ -71,6 +69,4 @@ TEST_F(CoreControllerTest, HomingFailsInNonIdleState) {
     EXPECT_EQ(controller.getState(), SystemState::RUNNING);
 }
 
-} // namespace test
-} // namespace core
-} // namespace xxcnc
+} // namespace xxcnc::core::test

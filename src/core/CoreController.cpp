@@ -31,7 +31,7 @@ bool CoreController::initialize() {
         return true;
     } catch (const std::exception& e) {
         logger->error("初始化过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }
@@ -48,7 +48,7 @@ bool CoreController::start() {
         return true;
     } catch (const std::exception& e) {
         logger->error("启动过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }
@@ -65,7 +65,7 @@ bool CoreController::stop() {
         return true;
     } catch (const std::exception& e) {
         logger->error("停止过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }
@@ -82,7 +82,7 @@ bool CoreController::pause() {
         return true;
     } catch (const std::exception& e) {
         logger->error("暂停过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }
@@ -99,7 +99,7 @@ bool CoreController::resume() {
         return true;
     } catch (const std::exception& e) {
         logger->error("恢复过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }
@@ -116,7 +116,7 @@ bool CoreController::emergencyStop() {
         return true;
     } catch (const std::exception& e) {
         logger->error("紧急停止过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }
@@ -138,7 +138,7 @@ bool CoreController::startHoming() {
         return true;
     } catch (const std::exception& e) {
         logger->error("回零过程发生异常：{}", e.what());
-        currentState = SystemState::ERROR;
+        currentState = SystemState::SERROR;
         return false;
     }
 }

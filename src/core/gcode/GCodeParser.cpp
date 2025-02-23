@@ -4,11 +4,9 @@
 #include <cctype>
 #include <iostream>
 
-namespace xxcnc {
-namespace core {
-namespace gcode {
+namespace xxcnc::core::gcode {
 
-// GCodeLexer implementation
+// GCodeLexer实现
 void GCodeLexer::setInput(const std::string& input) {
     input_ = input;
     position_ = 0;
@@ -30,18 +28,18 @@ std::string GCodeLexer::nextToken() {
     std::string token;
     char current = input_[position_];
 
-    // Handle comments
+    // 处理注释
     if (current == ';' || current == '(') {
-        position_ = input_.length(); // Skip all content after comment
+        position_ = input_.length(); // 跳过注释后的所有内容
         return "";
     }
 
-    // Handle letter+number combinations (like G01, X100, etc.)
+    // 处理字母+数字组合（如G01、X100等）
     if (std::isalpha(current)) {
         token += current;
         ++position_;
 
-        // Read numeric part
+        // 读取数字部分
         while (position_ < input_.length() && 
                (std::isdigit(input_[position_]) || input_[position_] == '.' || 
                 input_[position_] == '-' || input_[position_] == '+')) {
@@ -49,7 +47,7 @@ std::string GCodeLexer::nextToken() {
             ++position_;
         }
     }
-    // Handle pure numbers
+    // 处理纯数字
     else if (std::isdigit(current) || current == '.' || current == '-' || current == '+') {
         while (position_ < input_.length() && 
                (std::isdigit(input_[position_]) || input_[position_] == '.' || 
@@ -59,7 +57,7 @@ std::string GCodeLexer::nextToken() {
         }
     }
     else {
-        // Handle other characters
+        // 处理其他字符
         token += current;
         ++position_;
     }
@@ -71,7 +69,7 @@ bool GCodeLexer::isEnd() const {
     return position_ >= input_.length();
 }
 
-// GCodeParser implementation
+// GCodeParser实现
 GCodeParser::GCodeParser() : lexer_(std::make_unique<GCodeLexer>()) {}
 
 GCodeType GCodeParser::parseGCodeType(const std::string& token) const {
@@ -116,30 +114,34 @@ GCodeParam GCodeParser::parseParam(const std::string& token) const {
 GCodeCommand GCodeParser::parseLine(const std::string& line) {
     lexer_->setInput(line);
     GCodeCommand command;
-    command.lineNumber = -1; // Default line number
+    command.lineNumber = -1; // 默认行号
 
     std::string token;
     bool hasGCode = false;
 
     while (!(token = lexer_->nextToken()).empty()) {
-        // Handle line number
+        // 处理行号
         if (token[0] == 'N' && command.lineNumber == -1) {
             try {
-                command.lineNumber = std::stoi(token.substr(1));
+                int lineNum = std::stoi(token.substr(1));
+                if (lineNum < 0) {
+                    throw ParserError("Negative line number not allowed: " + token);
+                }
+                command.lineNumber = lineNum;
                 continue;
             } catch (const std::exception&) {
                 throw ParserError("Invalid line number: " + token);
             }
         }
 
-        // Handle G-code type
+        // 处理G代码类型
         if (token[0] == 'G' && !hasGCode) {
             command.type = parseGCodeType(token);
             hasGCode = true;
             continue;
         }
 
-        // Handle tool change command
+        // 处理换刀命令
         if (token[0] == 'T') {
             command.type = GCodeType::TOOL_CHANGE;
             hasGCode = true;
@@ -147,8 +149,16 @@ GCodeCommand GCodeParser::parseLine(const std::string& line) {
             continue;
         }
 
-        // Handle parameters
+        // 处理参数
         if (std::isalpha(token[0])) {
+            char paramLetter = token[0];
+            // 检查是否是有效的参数字母
+            if (paramLetter != 'X' && paramLetter != 'Y' && paramLetter != 'Z' && 
+                paramLetter != 'I' && paramLetter != 'J' && paramLetter != 'K' && 
+                paramLetter != 'F' && paramLetter != 'S' && paramLetter != 'P' && 
+                paramLetter != 'T') {
+                throw ParserError("Invalid parameter letter: " + std::string(1, paramLetter));
+            }
             command.params.push_back(parseParam(token));
         }
     }
@@ -172,7 +182,7 @@ std::vector<GCodeCommand> GCodeParser::parseFile(const std::string& filename) {
         try {
             commands.push_back(parseLine(line));
         } catch (const ParserError& e) {
-            // Log error but continue parsing
+            // 记录错误但继续解析
             std::cerr << "Error parsing line: " << e.what() << std::endl;
         }
     }
@@ -180,6 +190,4 @@ std::vector<GCodeCommand> GCodeParser::parseFile(const std::string& filename) {
     return commands;
 }
 
-} // namespace gcode
-} // namespace core
-} // namespace xxcnc
+} // namespace xxcnc::core::gcode

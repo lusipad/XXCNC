@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <spdlog/logger.h>
 #include <memory>
 
@@ -10,7 +10,7 @@ enum class SystemState {
     IDLE,           // Idle state
     RUNNING,        // Running state
     PAUSED,         // Paused state
-    ERROR,          // Error state
+    SERROR,          // Error state
     HOMING,         // Homing state
     EMERGENCY_STOP  // Emergency stop state
 };

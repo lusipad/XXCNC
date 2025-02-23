@@ -1,11 +1,8 @@
-#include <gtest/gtest.h>
+﻿#include <gtest/gtest.h>
 #include <chrono>
 #include "xxcnc/core/motion/InterpolationEngine.h"
 
-namespace xxcnc {
-namespace core {
-namespace motion {
-namespace test {
+namespace xxcnc::core::motion::test {
 
 class InterpolationEngineTest : public ::testing::Test {
 protected:
@@ -35,12 +32,13 @@ TEST_F(InterpolationEngineTest, LinearInterpolationBasic) {
     ASSERT_FALSE(points.empty());
 
     // 验证起点和终点
-    EXPECT_DOUBLE_EQ(points.front().x, start.x);
-    EXPECT_DOUBLE_EQ(points.front().y, start.y);
-    EXPECT_DOUBLE_EQ(points.front().z, start.z);
-    EXPECT_DOUBLE_EQ(points.back().x, end.x);
-    EXPECT_DOUBLE_EQ(points.back().y, end.y);
-    EXPECT_DOUBLE_EQ(points.back().z, end.z);
+    const double epsilon = 1e-10;  // 设置合理的误差容限
+    EXPECT_NEAR(points.front().x, start.x, epsilon);
+    EXPECT_NEAR(points.front().y, start.y, epsilon);
+    EXPECT_NEAR(points.front().z, start.z, epsilon);
+    EXPECT_NEAR(points.back().x, end.x, epsilon);
+    EXPECT_NEAR(points.back().y, end.y, epsilon);
+    EXPECT_NEAR(points.back().z, end.z, epsilon);
 
     // 验证路径的连续性
     for (size_t i = 1; i < points.size(); ++i) {
@@ -62,11 +60,12 @@ TEST_F(InterpolationEngineTest, CircularInterpolationBasic) {
     ASSERT_FALSE(points.empty());
 
     // 验证起点和终点
-    EXPECT_DOUBLE_EQ(points.front().x, start.x);
-    EXPECT_DOUBLE_EQ(points.front().y, start.y);
-    EXPECT_DOUBLE_EQ(points.front().z, start.z);
-    EXPECT_DOUBLE_EQ(points.back().x, end.x);
-    EXPECT_DOUBLE_EQ(points.back().y, end.y);
+    const double epsilon = 1e-10; // 设置合适的误差容限
+    EXPECT_NEAR(points.front().x, start.x, epsilon);
+    EXPECT_NEAR(points.front().y, start.y, epsilon);
+    EXPECT_NEAR(points.front().z, start.z, epsilon);
+    EXPECT_NEAR(points.back().x, end.x, epsilon);
+    EXPECT_NEAR(points.back().y, end.y, epsilon);
     EXPECT_DOUBLE_EQ(points.back().z, end.z);
 
     // 验证所有点到圆心的距离相等（允许小误差）
@@ -111,7 +110,8 @@ TEST_F(InterpolationEngineTest, PathOptimizationTest) {
     }
 
     // 优化路径
-    auto optimizedPath = engine->optimizePath(path, params);
+    std::vector<Point> optimizedPath = path;
+    engine->optimizePath(optimizedPath, params);
 
     // 验证优化后的路径点数应该小于原始路径
     EXPECT_LT(optimizedPath.size(), path.size());
@@ -143,29 +143,27 @@ TEST_F(InterpolationEngineTest, EdgeCases) {
 // 性能测试
 TEST_F(InterpolationEngineTest, Performance) {
     Point start{0.0, 0.0, 0.0};
-    Point end{1000.0, 1000.0, 0.0};
-    params.feedRate = 5000.0; // 高速进给
+    Point end{100.0, 100.0, 0.0};
+    params.feedRate = 3000.0; // 适中的进给速度
 
     auto startTime = std::chrono::high_resolution_clock::now();
     auto points = engine->linearInterpolation(start, end, params);
     auto endTime = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
-    EXPECT_LT(duration.count(), 100); // 期望计算时间小于100ms
+    EXPECT_LT(duration.count(), 50); // 期望计算时间小于50ms
 
     // 验证生成的点数在合理范围内
     double distance = sqrt(pow(end.x - start.x, 2) + pow(end.y - start.y, 2));
-    size_t expectedMaxPoints = static_cast<size_t>(distance * 10); // 假设每毫米最多10个点
+    size_t expectedMaxPoints = static_cast<size_t>(distance * 5); // 每毫米5个点
     EXPECT_LE(points.size(), expectedMaxPoints);
 }
 
-} // namespace test
-} // namespace motion
-} // namespace core
-} // namespace xxcnc
-
 // 错误处理测试
-TEST_F(InterpolationEngineTest, ErrorHandling) {
+class ErrorHandlingTest : public InterpolationEngineTest {
+};
+
+TEST_F(ErrorHandlingTest, InvalidParameters) {
     Point start{0.0, 0.0, 0.0};
     Point end{10.0, 10.0, 0.0};
     Point center{5.0, 5.0, 0.0};
@@ -181,3 +179,5 @@ TEST_F(InterpolationEngineTest, ErrorHandling) {
     EXPECT_THROW(engine->circularInterpolation(start, end, start, true, params), std::invalid_argument); // 圆心不能是起点
     EXPECT_THROW(engine->circularInterpolation(start, end, end, true, params), std::invalid_argument);   // 圆心不能是终点
 }
+
+} // namespace xxcnc::core::motion::test

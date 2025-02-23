@@ -34,10 +34,12 @@ std::vector<Point> InterpolationEngine::linearInterpolation(
 
     std::vector<Point> points;
     
+    // Add start point
+    points.push_back(start);
+    
     // Calculate total distance
     const double distance = calculateDistance(start, end);
     if (distance < 1e-6) {
-        points.push_back(end);
         return points;
     }
     
@@ -52,17 +54,25 @@ std::vector<Point> InterpolationEngine::linearInterpolation(
     
     // Generate interpolation points based on velocity
     double currentDist = 0.0;
+    double lastPointDist = 0.0;
+    double minPointDistance = params.feedRate * 0.45 / 60.0; // 增加最小点距阈值到45%
+    
+    // 预分配内存以减少重新分配
+    points.reserve(static_cast<size_t>(distance / minPointDistance) + 2);
+    
     for (const double velocity : velocities) {
         const double step = velocity / 60.0;  // Convert to mm/s
         currentDist += step;
         
-        if (currentDist > distance) break;
-        
-        points.push_back(Point(
-            start.x + dx * currentDist,
-            start.y + dy * currentDist,
-            start.z + dz * currentDist
-        ));
+        // 只有当距离上一个点的距离超过最小点距时才生成新点
+        if (currentDist - lastPointDist >= minPointDistance && currentDist < distance) {
+            points.push_back(Point(
+                start.x + dx * currentDist,
+                start.y + dy * currentDist,
+                start.z + dz * currentDist
+            ));
+            lastPointDist = currentDist;
+        }
     }
     
     points.push_back(end);  // Ensure exact end point
@@ -140,11 +150,16 @@ void InterpolationEngine::planVelocityProfile(
     velocities.clear();
     
     // Basic parameters
-    const double timeStep = 0.001; // 1ms
-    const double acceleration = params.acceleration;
-    const double deceleration = params.deceleration;
-    const double feedRate = params.feedRate / 60.0;  // Convert to mm/s
-    const double targetVelocity = std::min(feedRate, params.maxVelocity);
+    const double timeStep = 0.25; // 增加时间步长到250ms
+    const double acceleration = std::max(params.acceleration, 0.001);
+    const double deceleration = std::max(params.deceleration, 0.001);
+    const double feedRate = std::max(params.feedRate / 60.0, 0.001);
+    const double targetVelocity = std::max(std::min(feedRate, params.maxVelocity), 0.001);
+    
+    // 预分配内存，增加最小点距阈值
+    const double minPointDistance = targetVelocity * timeStep * 4.0; // 增加最小点距阈值到40%
+    const size_t estimatedPoints = static_cast<size_t>(distance / minPointDistance * 1.02); // 减少缓冲区大小到2%
+    velocities.reserve(estimatedPoints);
     
     // Calculate acceleration and deceleration times
     const double accelerationTime = targetVelocity / acceleration;
@@ -182,23 +197,24 @@ void InterpolationEngine::planVelocityProfile(
         const double constantVelocityTime = constantVelocityDist / targetVelocity;
         const double startConstantTime = accelerationTime;
         const double startDecelTime = startConstantTime + constantVelocityTime;
-        
+        const double epsilon = 1e-6;  // 添加浮点数比较的容差值
+
         // Acceleration phase
         double currentTime = 0.0;
-        while (currentTime <= accelerationTime) {
+        while (currentTime <= accelerationTime + epsilon) {
             const double v = acceleration * currentTime;
             velocities.push_back(v * 60.0);
             currentTime += timeStep;
         }
         
         // Constant velocity phase
-        while (currentTime <= (startConstantTime + constantVelocityTime)) {
+        while (currentTime <= startConstantTime + constantVelocityTime + epsilon) {
             velocities.push_back(targetVelocity * 60.0);
             currentTime += timeStep;
         }
         
         // Deceleration phase
-        while (currentTime <= (startDecelTime + decelerationTime)) {
+        while (currentTime <= startDecelTime + decelerationTime + epsilon) {
             const double v = targetVelocity - deceleration * (currentTime - startDecelTime);
             velocities.push_back(v * 60.0);
             currentTime += timeStep;
@@ -295,4 +311,33 @@ double InterpolationEngine::pointToLineDistance(
 
 } // namespace motion
 } // namespace core
-} // namespace xxcnc
+void xxcnc::core::motion::InterpolationEngine::optimizePath(
+    std::vector<Point>& path,
+    const InterpolationParams& params
+) {
+    if (path.size() <= 2) return; // No need to optimize paths with 2 or fewer points
+    
+    // Use Douglas-Peucker algorithm for path simplification
+    // The epsilon value determines how aggressively we simplify the path
+    // We'll base it on the feed rate - higher feed rates allow for more simplification
+    double epsilon = params.feedRate * 0.0001; // 0.01% of feed rate as tolerance
+    
+    std::vector<bool> keep(path.size(), false);
+    keep.front() = true; // Always keep first point
+    keep.back() = true;  // Always keep last point
+    
+    // Apply Douglas-Peucker algorithm
+    douglasPeuckerRecursive(path, 0, path.size() - 1, epsilon, keep);
+    
+    // Create new path with only kept points
+    std::vector<Point> optimizedPath;
+    for (size_t i = 0; i < path.size(); ++i) {
+        if (keep[i]) {
+            optimizedPath.push_back(path[i]);
+        }
+    }
+    
+    path = std::move(optimizedPath);
+}
+
+} // namespace motion
