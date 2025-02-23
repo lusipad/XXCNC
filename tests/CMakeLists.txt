@@ -11,6 +11,8 @@ add_executable(xxcnc_tests
     core/InterpolationEngineTest.cpp
     # G代码解析器测试
     core/GCodeParserTest.cpp
+    # 轴控制模块测试
+    core/motion/AxisControllerTest.cpp
 )
 
 # 链接测试库

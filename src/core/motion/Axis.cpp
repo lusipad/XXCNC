@@ -106,18 +106,24 @@ void Axis::update(double deltaTime)
     }
     currentVelocity_ += velocityDiff;
 
-    // 更新位置
-    double newPosition = currentPosition_ + currentVelocity_ * deltaTime;
+    // 计算预期位置
+    double expectedPosition = currentPosition_ + currentVelocity_ * deltaTime;
 
-    // 检查软限位
-    if (newPosition < params_.softLimitMin || newPosition > params_.softLimitMax) {
+    // 提前检查软限位并减速
+    double safetyMargin = std::abs(currentVelocity_ * deltaTime * 2); // 减小安全距离
+    if (expectedPosition + safetyMargin >= params_.softLimitMax || 
+        expectedPosition - safetyMargin <= params_.softLimitMin) {
+        // 立即停止并进入错误状态
+        currentPosition_ = expectedPosition >= params_.softLimitMax ? 
+            params_.softLimitMax - 0.1 : params_.softLimitMin + 0.1;
         currentVelocity_ = 0;
         targetVelocity_ = 0;
         state_ = AxisState::ERROR;
         return;
     }
 
-    currentPosition_ = newPosition;
+    // 更新位置，使用梯形积分提高精度
+    currentPosition_ = currentPosition_ + (currentVelocity_ + velocityDiff * 0.5) * deltaTime;
 
     // 检查是否到达目标位置
     if (state_ == AxisState::MOVING) {

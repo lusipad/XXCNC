@@ -11,6 +11,8 @@ add_library(xxcnc
     core/gcode/GCodeParser.cpp
     # 插补引擎
     core/motion/InterpolationEngine.cpp
+    # 轴控制模块
+    core/motion/AxisController.cpp
 )
 
 # 设置包含目录
