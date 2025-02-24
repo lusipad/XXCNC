@@ -2,6 +2,7 @@
 
 # 查找依赖包
 find_package(spdlog REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # 添加库目标
 add_library(xxcnc
@@ -24,10 +25,14 @@ target_include_directories(xxcnc
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# 添加web子目录
+add_subdirectory(core/web)
+
 # 链接依赖库
 target_link_libraries(xxcnc
     PRIVATE
         spdlog::spdlog
+        xxcnc_web
 )
 
 # 添加编译选项
@@ -50,4 +55,14 @@ install(
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# 添加可执行文件目标
+add_executable(xxcnc_server main.cpp)
+
+# 链接依赖库
+target_link_libraries(xxcnc_server
+    PRIVATE
+        xxcnc
+        nlohmann_json::nlohmann_json
 )

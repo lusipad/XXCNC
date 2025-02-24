@@ -3,6 +3,8 @@
     "version": "0.0.1",
     "dependencies": [
         "spdlog",
-        "gtest"
+        "gtest",
+        "cpp-httplib",
+        "nlohmann-json"
     ]
 }
