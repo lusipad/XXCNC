@@ -3,6 +3,7 @@
 #include "xxcnc/core/web/WebAPI.h"
 #include <filesystem>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 namespace xxcnc {
 namespace web {
@@ -29,10 +30,20 @@ public:
             response.progress = currentProgress;
             
             // 更新位置 - 模拟机器移动
-            double angle = currentProgress * 2 * 3.14159;
-            response.position.x = 10.0 * std::cos(angle);
-            response.position.y = 10.0 * std::sin(angle);
-            response.position.z = 0.0;
+            if (!simulatedTrajectoryPoints.empty()) {
+                // 根据当前进度计算当前位置
+                size_t pointIndex = static_cast<size_t>(currentProgress * (simulatedTrajectoryPoints.size() - 1));
+                if (pointIndex < simulatedTrajectoryPoints.size()) {
+                    const auto& currentPoint = simulatedTrajectoryPoints[pointIndex];
+                    response.position.x = currentPoint.x;
+                    response.position.y = currentPoint.y;
+                    response.position.z = currentPoint.z;
+                }
+                
+                // 添加所有轨迹点到响应中
+                response.trajectoryPoints = simulatedTrajectoryPoints;
+                spdlog::info("状态API返回 {} 个轨迹点", response.trajectoryPoints.size());
+            }
         } else {
             response.status = "idle";
             response.progress = 0.0;
@@ -43,59 +54,57 @@ public:
         response.currentFile = "test.nc";
         response.errorCode = 0;
         
-        // 添加轨迹点到消息中
-        if (isProcessing) {
-            response.messages.push_back("Processing trajectory");
-            
-            // 添加一些轨迹点到响应中
-            // 这些轨迹点会在WebServer.cpp中被转换为JSON
-            response.trajectoryPoints.clear();
-            for (int i = 0; i < 10; i++) {
-                TrajectoryPoint point;
-                double pointAngle = currentProgress * 2 * 3.14159 * (i / 10.0);
-                point.x = 10.0 * std::cos(pointAngle);
-                point.y = 10.0 * std::sin(pointAngle);
-                point.z = 0.0;
-                point.isRapid = (i % 5 == 0);
-                point.command = "G01";
-                response.trajectoryPoints.push_back(point);
-            }
-        }
-        
         return response;
     }
 
     // 控制指令API
-    bool executeCommand(const std::string& command) override {
-        spdlog::info("执行命令: {}", command);
-        
-        if (command == "motion.start") {
-            // 模拟开始加工
-            spdlog::info("开始加工");
-            isProcessing = true;
-            currentProgress = 0.0;
+    bool executeCommand(const nlohmann::json& cmdJson) override {
+        try {
+            if (!cmdJson.contains("command") || !cmdJson["command"].is_string()) {
+                spdlog::error("无效的命令格式，缺少command字段或类型不正确");
+                return false;
+            }
             
-            // 生成一些模拟的轨迹点
-            simulatedTrajectoryPoints.clear();
-            for (int i = 0; i < 100; i++) {
-                TrajectoryPoint point;
-                point.x = 10.0 * std::cos(i * 0.1);
-                point.y = 10.0 * std::sin(i * 0.1);
-                point.z = 0.0;
-                point.isRapid = (i % 10 == 0);
-                point.command = "G01";
-                simulatedTrajectoryPoints.push_back(point);
+            std::string command = cmdJson["command"].get<std::string>();
+            spdlog::info("执行命令: {}", command);
+            
+            if (command == "motion.start") {
+                // 检查是否有文件名参数
+                if (!cmdJson.contains("filename") || !cmdJson["filename"].is_string()) {
+                    spdlog::error("motion.start命令缺少filename参数");
+                    return false;
+                }
+                
+                std::string filename = cmdJson["filename"].get<std::string>();
+                spdlog::info("开始加工文件: {}", filename);
+                
+                // 解析文件获取轨迹点
+                auto parseResponse = parseFile(filename);
+                if (!parseResponse.success) {
+                    spdlog::error("解析文件失败: {}", parseResponse.error);
+                    return false;
+                }
+                
+                // 使用解析的轨迹点
+                simulatedTrajectoryPoints = parseResponse.trajectoryPoints;
+                spdlog::info("成功加载轨迹点: {} 个", simulatedTrajectoryPoints.size());
+                
+                // 开始加工流程
+                isProcessing = true;
+                currentProgress = 0.0;
+                return true;
+            } else if (command == "motion.stop") {
+                // 模拟停止加工
+                spdlog::info("停止加工");
+                isProcessing = false;
+                return true;
             }
             
             return true;
-        } else if (command == "motion.stop") {
-            // 模拟停止加工
-            spdlog::info("停止加工");
-            isProcessing = false;
-            return true;
+        } catch (const std::exception& e) {
+            spdlog::error("执行命令时发生错误: {}", e.what());
+            return false;
         }
-        
-        return true;
     }
 
     // 文件管理API

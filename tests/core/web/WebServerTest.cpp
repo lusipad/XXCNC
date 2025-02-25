@@ -12,7 +12,7 @@ using json = nlohmann::json;
 class MockWebAPI : public WebAPI {
 public:
     MOCK_METHOD(StatusResponse, getSystemStatus, (), (override));
-    MOCK_METHOD(bool, executeCommand, (const std::string&), (override));
+    MOCK_METHOD(bool, executeCommand, (const nlohmann::json&), (override));
     MOCK_METHOD(FileListResponse, getFileList, (const std::string&), (override));
     MOCK_METHOD(ConfigResponse, getConfig, (), (override));
     MOCK_METHOD(bool, updateConfig, (const ConfigData&), (override));
@@ -51,11 +51,11 @@ TEST_F(WebServerTest, GetSystemStatus_ReturnsValidStatus) {
 }
 
 TEST_F(WebServerTest, ExecuteCommand_ValidCommand_ReturnsTrue) {
-    EXPECT_CALL(*mockAPI, executeCommand("G0 X100"))
+    EXPECT_CALL(*mockAPI, executeCommand(json{{"command", "G0 X100"}}))
         .WillOnce(Return(true));
 
     server->setCommandCallback([this](const json& cmd) -> json {
-        return json{{"success", mockAPI->executeCommand(cmd["command"])}};
+        return json{{"success", mockAPI->executeCommand(cmd)}};
     });
 
     auto callback = server->getCommandCallback();
@@ -128,11 +128,11 @@ TEST_F(WebServerTest, UpdateConfig_ValidConfig_ReturnsTrue) {
 }
 
 TEST_F(WebServerTest, ExecuteCommand_InvalidCommand_ReturnsFalse) {
-    EXPECT_CALL(*mockAPI, executeCommand("INVALID"))
+    EXPECT_CALL(*mockAPI, executeCommand(json{{"command", "INVALID"}}))
         .WillOnce(Return(false));
 
     server->setCommandCallback([this](const json& cmd) -> json {
-        return json{{"success", mockAPI->executeCommand(cmd["command"])}};
+        return json{{"success", mockAPI->executeCommand(cmd)}};
     });
 
     auto callback = server->getCommandCallback();

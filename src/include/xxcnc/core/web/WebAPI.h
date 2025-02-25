@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 
 namespace xxcnc {
 namespace web {
@@ -46,7 +47,7 @@ public:
     virtual StatusResponse getSystemStatus() = 0;
 
     // 控制指令API
-    virtual bool executeCommand(const std::string& command) = 0;
+    virtual bool executeCommand(const nlohmann::json& command) = 0;
 
     // 文件管理API
     virtual FileListResponse getFileList(const std::string& path) = 0;

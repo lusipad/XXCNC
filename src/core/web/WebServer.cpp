@@ -124,19 +124,6 @@ private:
                                 {"command", point.command}
                             });
                         }
-                    } else if (status.status == "machining" && !status.messages.empty()) {
-                        // 如果没有轨迹点但是在加工中，生成一些模拟的轨迹点
-                        spdlog::info("生成模拟轨迹点");
-                        for (int i = 0; i < 10; i++) {
-                            double angle = status.progress * 2 * 3.14159 * (i / 10.0);
-                            trajectoryPointsJson.push_back({
-                                {"x", 10.0 * std::cos(angle)},
-                                {"y", 10.0 * std::sin(angle)},
-                                {"z", 0.0},
-                                {"isRapid", (i % 5 == 0)},
-                                {"command", "G01"}
-                            });
-                        }
                     }
                     
                     // 生成JSON响应
@@ -149,12 +136,16 @@ private:
                         }},
                         {"feedRate", status.feedRate},
                         {"progress", status.progress},
-                        {"currentFile", status.currentFile},
-                        {"machining", {
+                        {"currentFile", status.currentFile}
+                    };
+                    
+                    // 添加machining字段，包含轨迹点
+                    if (status.status == "machining" || !trajectoryPointsJson.empty()) {
+                        responseJson["machining"] = {
                             {"progress", status.progress},
                             {"trajectoryPoints", trajectoryPointsJson}
-                        }}
-                    };
+                        };
+                    }
                     
                     // 输出调试信息
                     spdlog::info("状态API响应: {}", responseJson.dump());
@@ -197,7 +188,7 @@ private:
                     auto response = (*callback)(cmd);
                     res.set_content(response.dump(), "application/json");
                 } else if (server_.api_) {
-                    bool success = server_.api_->executeCommand(cmd["command"]);
+                    bool success = server_.api_->executeCommand(cmd);
                     res.set_content(nlohmann::json{{"success", success}}.dump(), "application/json");
                 } else {
                     res.status = 503;

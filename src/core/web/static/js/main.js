@@ -280,6 +280,16 @@ function initControlButtons() {
     } else {
         console.error("停止加工按钮未找到!");
     }
+    
+    // 清除轨迹按钮
+    const clearTrajectoryBtn = document.getElementById('clear-trajectory-btn');
+    if (clearTrajectoryBtn) {
+        clearTrajectoryBtn.addEventListener('click', function() {
+            clearTrajectory();
+        });
+    } else {
+        console.error("清除轨迹按钮未找到!");
+    }
 }
 
 // 开始加工
@@ -861,5 +871,16 @@ function drawTrajectory(trajectoryPoints) {
     } catch (error) {
         console.error("轨迹绘制失败:", error);
         logMessage(`[错误] 轨迹绘制失败: ${error.message}`, 'error');
+    }
+}
+
+// 清除轨迹
+function clearTrajectory() {
+    if (window.trajectoryViewer) {
+        window.trajectoryViewer.clear();
+        logMessage('[轨迹] 清除轨迹', 'info');
+    } else {
+        console.error("轨迹查看器未初始化");
+        logMessage('[错误] 轨迹查看器未初始化', 'error');
     }
 }
