@@ -1,200 +1,269 @@
 class TrajectoryViewer {
     constructor(canvasId) {
-        this.canvas = document.getElementById(canvasId);
-        if (!this.canvas) {
-            throw new Error(`Canvas element with id '${canvasId}' not found`);
+        this.canvasId = canvasId;
+        this.init();
+    }
+
+    init() {
+        const canvas = document.getElementById(this.canvasId);
+        if (!canvas) {
+            console.error(`Canvas with id ${this.canvasId} not found`);
+            return;
         }
 
+        // 创建Three.js场景
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, this.canvas.clientWidth / this.canvas.clientHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({
-            canvas: this.canvas,
-            antialias: true
-        });
+        this.scene.background = new THREE.Color(0x1a1a1a);
 
-        // 设置相机位置
-        this.camera.position.set(100, 100, 100);
+        // 创建相机
+        this.camera = new THREE.PerspectiveCamera(
+            75, // 视野角度
+            canvas.clientWidth / canvas.clientHeight, // 宽高比
+            0.1, // 近截面
+            1000 // 远截面
+        );
+        this.camera.position.set(50, 50, 100);
         this.camera.lookAt(0, 0, 0);
 
-        // 设置渲染器尺寸和背景色
-        this.renderer.setClearColor(0x000000);  // 黑色背景
-        this.updateRendererSize();
+        // 创建渲染器
+        this.renderer = new THREE.WebGLRenderer({ 
+            canvas: canvas,
+            antialias: true 
+        });
+        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
-        // 添加网格和坐标轴
-        this.setupScene();
-
-        // 轨迹数据
-        this.trajectoryPoints = [];
-        this.trajectoryLines = [];  // 存储轨迹线段
-        this.rapidColor = 0xff0000;  // 快速定位颜色 - 红色
-        this.feedColor = 0x00ff00;   // 进给颜色 - 绿色
-
-        // 视图控制
-        this.setupControls();
-
-        // 添加事件监听
-        this.addEventListeners();
-
-        // 开始渲染循环
-        this.animate();
-    }
-
-    setupScene() {
-        // 添加网格
-        const gridHelper = new THREE.GridHelper(200, 20, 0x404040, 0x404040);
-        this.scene.add(gridHelper);
-
-        // 添加坐标轴
-        const axesHelper = new THREE.AxesHelper(100);
-        this.scene.add(axesHelper);
-
-        // 添加环境光
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        this.scene.add(ambientLight);
-
-        // 添加平行光
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        directionalLight.position.set(100, 100, 100);
-        this.scene.add(directionalLight);
-    }
-
-    setupControls() {
-        // 实现轨道控制器
+        // 添加轨道控制器
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.enablePan = true;
-        this.controls.enableZoom = true;
-        this.controls.enableRotate = true;
-        this.controls.autoRotate = false;
+        this.controls.dampingFactor = 0.25;
+        this.controls.screenSpacePanning = false;
+        this.controls.maxPolarAngle = Math.PI / 2;
+
+        // 创建坐标系网格和轴
+        this.createGrid();
+        this.createAxes();
+
+        // 存储轨迹数据
+        this.trajectoryPoints = [];
+        this.trajectoryLine = null;
+        
+        // 显示帧率
+        try {
+            this.stats = new Stats();
+            document.body.appendChild(this.stats.domElement);
+            this.stats.domElement.style.position = 'absolute';
+            this.stats.domElement.style.top = '0px';
+            this.stats.domElement.style.right = '0px';
+            this.stats.domElement.style.zIndex = '100';
+        } catch (error) {
+            console.error("无法初始化Stats:", error);
+            this.stats = null;
+        }
+        
+        // 启动动画循环
+        this.animate();
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => this.handleResize());
+        
+        // 记录最后绘制的点
+        this.lastPoint = null;
     }
 
-    updateRendererSize() {
-        const rect = this.canvas.parentElement.getBoundingClientRect();
-        const width = rect.width;
-        const height = rect.height;
+    createGrid() {
+        // 创建网格
+        const gridSize = 100;
+        const gridDivisions = 10;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x606060, 0x404040);
+        this.scene.add(gridHelper);
+    }
+
+    createAxes() {
+        // 创建坐标轴
+        const axesHelper = new THREE.AxesHelper(50);
+        this.scene.add(axesHelper);
         
-        this.canvas.style.width = '100%';
-        this.canvas.style.height = '100%';
+        // 添加X、Y、Z标签
+        this.addAxisLabel('X', 55, 0, 0, 0xff0000);
+        this.addAxisLabel('Y', 0, 55, 0, 0x00ff00);
+        this.addAxisLabel('Z', 0, 0, 55, 0x0000ff);
+    }
+    
+    addAxisLabel(text, x, y, z, color) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const context = canvas.getContext('2d');
+        context.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+        context.font = '48px Arial';
+        context.fillText(text, 16, 48);
         
-        this.renderer.setSize(width, height, false);
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
+        const texture = new THREE.Texture(canvas);
+        texture.needsUpdate = true;
+        
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.position.set(x, y, z);
+        sprite.scale.set(10, 10, 1);
+        
+        this.scene.add(sprite);
     }
 
     addTrajectoryPoint(point, isRapid = false) {
-        if (!point || typeof point.x !== 'number' || typeof point.y !== 'number' || typeof point.z !== 'number') {
-            console.error('Invalid trajectory point:', point);
-            return;
+        // 添加一个轨迹点
+        if (!point || typeof point.x === 'undefined') return;
+        
+        const position = { x: point.x, y: point.y, z: point.z || 0 };
+        this.trajectoryPoints.push(position);
+        
+        // 更新轨迹线
+        this.updateTrajectoryLine();
+        
+        // 如果是快速移动，添加一个标记
+        if (isRapid) {
+            this.addRapidMarker(position);
         }
-
-        const newPoint = new THREE.Vector3(point.x, point.y, point.z);
-
-        if (this.trajectoryPoints.length === 0) {
-            this.trajectoryPoints.push(newPoint);
-            return;
-        }
-
-        const lastPoint = this.trajectoryPoints[this.trajectoryPoints.length - 1];
-        const geometry = new THREE.BufferGeometry().setFromPoints([lastPoint, newPoint]);
-
-        const material = new THREE.LineBasicMaterial({
-            color: isRapid ? this.rapidColor : this.feedColor,
-            linewidth: 2  // 注意：由于WebGL限制，线宽可能在某些浏览器中不起作用
+        
+        this.lastPoint = position;
+    }
+    
+    addPath(points) {
+        if (!points || !Array.isArray(points) || points.length < 2) return;
+        
+        // 清除现有轨迹
+        this.clear();
+        
+        // 添加所有点
+        points.forEach(point => {
+            this.trajectoryPoints.push({
+                x: point.x, 
+                y: point.y, 
+                z: point.z || 0
+            });
         });
-
-        const line = new THREE.Line(geometry, material);
-        this.scene.add(line);
-        this.trajectoryLines.push(line);  // 保存线段引用
-        this.trajectoryPoints.push(newPoint);
+        
+        // 更新轨迹线
+        this.updateTrajectoryLine();
+        
+        // 重置视图以显示整个路径
+        this.resetView();
+    }
+    
+    addRapidMarker(position) {
+        const geometry = new THREE.SphereGeometry(1, 8, 8);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const marker = new THREE.Mesh(geometry, material);
+        marker.position.set(position.x, position.y, position.z);
+        this.scene.add(marker);
     }
 
-    clearTrajectory() {
-        // 移除所有轨迹线
-        this.trajectoryLines.forEach(line => {
-            this.scene.remove(line);
-            line.geometry.dispose();
-            line.material.dispose();
+    updateTrajectoryLine() {
+        // 先移除已存在的轨迹线
+        if (this.trajectoryLine) {
+            this.scene.remove(this.trajectoryLine);
+        }
+        
+        if (this.trajectoryPoints.length < 2) return;
+
+        // 创建轨迹线
+        const geometry = new THREE.BufferGeometry();
+        
+        // 转换点数组为Float32Array
+        const positions = new Float32Array(this.trajectoryPoints.length * 3);
+        for (let i = 0; i < this.trajectoryPoints.length; i++) {
+            positions[i * 3] = this.trajectoryPoints[i].x;
+            positions[i * 3 + 1] = this.trajectoryPoints[i].y;
+            positions[i * 3 + 2] = this.trajectoryPoints[i].z;
+        }
+        
+        // 设置位置属性
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        // 创建轨迹线材质
+        const material = new THREE.LineBasicMaterial({ 
+            color: 0x00ffff,
+            linewidth: 2
         });
-        this.trajectoryLines = [];
+        
+        this.trajectoryLine = new THREE.Line(geometry, material);
+        this.scene.add(this.trajectoryLine);
+    }
+
+    clear() {
+        // 清除轨迹
         this.trajectoryPoints = [];
+        
+        if (this.trajectoryLine) {
+            this.scene.remove(this.trajectoryLine);
+            this.trajectoryLine = null;
+        }
+        
+        // 移除所有标记
+        this.scene.children = this.scene.children.filter(child => {
+            return !(child instanceof THREE.Mesh && child.geometry instanceof THREE.SphereGeometry);
+        });
+        
+        this.lastPoint = null;
     }
 
     resetView() {
+        // 重置视图，使所有轨迹点可见
         if (this.trajectoryPoints.length === 0) {
-            // 如果没有轨迹点，使用默认视图
-            this.camera.position.set(100, 100, 100);
+            this.camera.position.set(50, 50, 100);
             this.camera.lookAt(0, 0, 0);
             return;
         }
-
-        // 计算轨迹的边界框
-        const box = new THREE.Box3();
-        this.trajectoryPoints.forEach(point => box.expandByPoint(point));
-
-        // 计算边界框的中心和大小
+        
+        // 计算轨迹点的包围盒
+        const boundingBox = new THREE.Box3();
+        this.trajectoryPoints.forEach(point => {
+            boundingBox.expandByPoint(new THREE.Vector3(point.x, point.y, point.z));
+        });
+        
+        // 计算包围盒中心
         const center = new THREE.Vector3();
-        box.getCenter(center);
+        boundingBox.getCenter(center);
+        
+        // 计算包围盒大小
         const size = new THREE.Vector3();
-        box.getSize(size);
-
-        // 计算合适的相机距离
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const distance = maxDim * 2;
-
+        boundingBox.getSize(size);
+        
         // 设置相机位置
-        this.camera.position.set(
-            center.x + distance,
-            center.y + distance,
-            center.z + distance
-        );
-        this.camera.lookAt(center);
-
-        // 更新控制器
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const fov = this.camera.fov * (Math.PI / 180);
+        let cameraZ = Math.abs(maxDim / Math.sin(fov / 2)) * 1.5;
+        
+        // 更新相机位置
+        this.camera.position.set(center.x, center.y, center.z + cameraZ);
         this.controls.target.copy(center);
+        
+        this.camera.updateProjectionMatrix();
         this.controls.update();
+    }
+
+    handleResize() {
+        const canvas = document.getElementById(this.canvasId);
+        if (!canvas) return;
+        
+        // 更新相机宽高比
+        this.camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        this.camera.updateProjectionMatrix();
+        
+        // 更新渲染器大小
+        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
+        
+        // 更新控制器
         this.controls.update();
+        
+        // 渲染场景
         this.renderer.render(this.scene, this.camera);
-    }
-
-    addEventListeners() {
-        // 视图控制
-        const zoomIn = document.getElementById('zoomIn');
-        const zoomOut = document.getElementById('zoomOut');
-        const resetView = document.getElementById('resetView');
-        const clearTrajectory = document.getElementById('clearTrajectory');
-
-        if (zoomIn) {
-            zoomIn.addEventListener('click', () => {
-                this.camera.position.multiplyScalar(0.8);
-            });
-        }
-
-        if (zoomOut) {
-            zoomOut.addEventListener('click', () => {
-                this.camera.position.multiplyScalar(1.2);
-            });
-        }
-
-        if (resetView) {
-            resetView.addEventListener('click', () => {
-                this.resetView();
-            });
-        }
-
-        if (clearTrajectory) {
-            clearTrajectory.addEventListener('click', () => {
-                this.clearTrajectory();
-            });
-        }
-
-        // 窗口大小变化时更新渲染器尺寸
-        const resizeObserver = new ResizeObserver(() => this.updateRendererSize());
-        resizeObserver.observe(this.canvas.parentElement);
+        
+        // 更新状态
+        if (this.stats) this.stats.update();
     }
 }
 

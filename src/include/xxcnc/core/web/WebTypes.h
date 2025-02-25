@@ -11,12 +11,26 @@ namespace web {
  * @brief 系统状态响应
  */
 struct StatusResponse {
-    std::string status;      ///< 系统当前状态
-    int errorCode;           ///< 错误代码
+    std::string status;    ///< 系统当前状态
+    struct {
+        double x = 0.0;
+        double y = 0.0;
+        double z = 0.0;
+    } position;             ///< 当前位置
+    double feedRate = 100;  ///< 进给速度
+    std::string currentFile;///< 当前文件
+    double progress = 0;    ///< 进度
+    int errorCode = 0;      ///< 错误代码
     std::vector<std::string> messages;  ///< 状态消息列表
 
     bool operator==(const StatusResponse& other) const {
         return status == other.status &&
+               position.x == other.position.x &&
+               position.y == other.position.y &&
+               position.z == other.position.z &&
+               feedRate == other.feedRate &&
+               currentFile == other.currentFile &&
+               progress == other.progress &&
                errorCode == other.errorCode &&
                messages == other.messages;
     }

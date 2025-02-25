@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .upload-form {
+            margin: 20px 0;
+        }
+        .upload-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .upload-btn:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 100px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>XXCNC 文件上传测试</h1>
+        
+        <div class="upload-form">
+            <input type="file" id="fileInput" accept=".nc,.gcode">
+            <button class="upload-btn" id="uploadBtn">上传文件</button>
+        </div>
+        
+        <div id="result">
+            <p>结果将显示在这里...</p>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const resultDiv = document.getElementById('result');
+            
+            uploadBtn.addEventListener('click', function() {
+                if (!fileInput.files.length) {
+                    resultDiv.innerHTML = '<p style="color: red;">请先选择文件</p>';
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                resultDiv.innerHTML = `<p>开始上传文件: ${file.name} (${Math.round(file.size/1024)} KB)</p>`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                fetch('/api/files', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    resultDiv.innerHTML += `<p>服务器响应状态: ${response.status} ${response.statusText}</p>`;
+                    return response.json();
+                })
+                .then(data => {
+                    resultDiv.innerHTML += `<p>服务器响应数据: ${JSON.stringify(data)}</p>`;
+                    
+                    if (data.success) {
+                        resultDiv.innerHTML += `<p style="color: green;">文件上传成功!</p>`;
+                        
+                        // 尝试解析文件
+                        fetch(`/api/files/${encodeURIComponent(file.name)}/parse`)
+                            .then(response => response.json())
+                            .then(parseData => {
+                                resultDiv.innerHTML += `<p>文件解析响应: ${JSON.stringify(parseData)}</p>`;
+                                if (parseData.success) {
+                                    resultDiv.innerHTML += `<p style="color: green;">文件解析成功! 获取到 ${parseData.trajectoryPoints ? parseData.trajectoryPoints.length : 0} 个轨迹点</p>`;
+                                } else {
+                                    resultDiv.innerHTML += `<p style="color: red;">文件解析失败: ${parseData.error || '未知错误'}</p>`;
+                                }
+                            })
+                            .catch(error => {
+                                resultDiv.innerHTML += `<p style="color: red;">解析请求失败: ${error.message}</p>`;
+                            });
+                    } else {
+                        resultDiv.innerHTML += `<p style="color: red;">文件上传失败: ${data.error || '未知错误'}</p>`;
+                    }
+                })
+                .catch(error => {
+                    resultDiv.innerHTML += `<p style="color: red;">上传请求失败: ${error.message}</p>`;
+                });
+            });
+        });
+    </script>
+</body>
+</html>

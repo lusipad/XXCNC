@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>按钮测试</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("页面加载完成");
+            
+            const btn = document.getElementById('test-btn');
+            const fileInput = document.getElementById('test-file');
+            
+            console.log("按钮元素:", btn ? "找到" : "未找到");
+            console.log("文件输入元素:", fileInput ? "找到" : "未找到");
+            
+            if (btn && fileInput) {
+                btn.addEventListener('click', function() {
+                    console.log("按钮被点击");
+                    try {
+                        fileInput.click();
+                        console.log("文件输入点击成功触发");
+                    } catch (e) {
+                        console.error("触发文件输入点击失败:", e);
+                    }
+                });
+                
+                fileInput.addEventListener('change', function() {
+                    if (this.files.length > 0) {
+                        console.log("选择的文件:", this.files[0].name);
+                        document.getElementById('result').textContent = "选择的文件: " + this.files[0].name;
+                    }
+                });
+                
+                console.log("事件绑定完成");
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1>按钮测试</h1>
+    <button id="test-btn">选择文件</button>
+    <input type="file" id="test-file" style="display:none">
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+    
+    <p>操作步骤:</p>
+    <ol>
+        <li>点击"选择文件"按钮</li>
+        <li>应该会打开文件选择对话框</li>
+        <li>选择任意文件后，文件名应该显示在下方区域</li>
+    </ol>
+    
+    <p>如果文件选择对话框没有打开，请查看浏览器控制台(F12)，看是否有错误信息。</p>
+</body>
+</html>

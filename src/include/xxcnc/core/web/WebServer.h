@@ -5,30 +5,24 @@
 #include <functional>
 #include <optional>
 #include <nlohmann/json.hpp>
-#include "WebAPI.h"
 #include "WebTypes.h"
 
-namespace xxcnc::web {
+namespace xxcnc {
+namespace web {
 
 class WebServerImpl;
+class WebAPI;
 
 class WebServer {
 public:
-    // 服务器配置结构体
-    struct Config {
-        std::string static_dir = "./static";  // 静态文件目录
-        std::string host = "0.0.0.0";         // 监听地址
-        int port = 8080;                      // 监听端口
-        bool enable_cors = false;             // 是否启用CORS
-    };
-
     using json = nlohmann::json;
     using StatusCallback = std::function<json()>;
     using CommandCallback = std::function<json(const json&)>;
     using FileUploadCallback = std::function<json(const std::string&, const std::string&)>;
+    using FileParseCallback = std::function<json(const std::string&)>;
     using ConfigCallback = std::function<json(const json&)>;
 
-    WebServer();  // 添加默认构造函数
+    WebServer();
     explicit WebServer(std::shared_ptr<WebAPI> api);
     ~WebServer();
 
@@ -36,6 +30,9 @@ public:
     WebServer(const WebServer&) = delete;
     WebServer& operator=(const WebServer&) = delete;
 
+    // 配置服务器
+    void setStaticDir(const std::string& dir);
+    void setEnableCors(bool enable);
     bool start(const std::string& host, int port);
     void stop();
 
@@ -43,51 +40,39 @@ public:
     void setStatusCallback(StatusCallback callback);
     void setCommandCallback(CommandCallback callback);
     void setFileUploadCallback(FileUploadCallback callback);
+    void setFileParseCallback(FileParseCallback callback);
     void setConfigCallback(ConfigCallback callback);
 
-    // API处理函数
-    StatusResponse handleStatusRequest() {
-        return m_api->getSystemStatus();
-    }
-
-    bool handleCommandRequest(const std::string& command) {
-        return m_api->executeCommand(command);
-    }
-
-    FileListResponse handleFileListRequest(const std::string& path) {
-        return m_api->getFileList(path);
-    }
-
-    ConfigResponse handleConfigRequest() {
-        return m_api->getConfig();
-    }
-
-    bool handleConfigUpdateRequest(const ConfigData& config) {
-        return m_api->updateConfig(config);
-    }
-
-    // 回调函数访问方法
+    // 获取回调函数
     const std::optional<StatusCallback>& getStatusCallback() const { return statusCallback_; }
     const std::optional<CommandCallback>& getCommandCallback() const { return commandCallback_; }
     const std::optional<FileUploadCallback>& getFileUploadCallback() const { return fileUploadCallback_; }
+    const std::optional<FileParseCallback>& getFileParseCallback() const { return fileParseCallback_; }
     const std::optional<ConfigCallback>& getConfigCallback() const { return configCallback_; }
 
-    void setConfig(const Config& config) { config_ = config; }
-    const Config& getConfig() const { return config_; }
+    // 配置方法
+    void setHost(const std::string& host) { host_ = host; }
+    void setPort(int port) { port_ = port; }
+    std::string getHost() const { return host_; }
+    int getPort() const { return port_; }
+    std::string getStaticDir() const { return staticDir_; }
+    bool getEnableCors() const { return enableCors_; }
 
 private:
-    std::shared_ptr<WebAPI> m_api;
     std::unique_ptr<WebServerImpl> impl_;
-
-    // 回调函数
+    std::shared_ptr<WebAPI> api_;
     std::optional<StatusCallback> statusCallback_;
     std::optional<CommandCallback> commandCallback_;
     std::optional<FileUploadCallback> fileUploadCallback_;
+    std::optional<FileParseCallback> fileParseCallback_;
     std::optional<ConfigCallback> configCallback_;
+    std::string host_;
+    int port_;
+    std::string staticDir_;
+    bool enableCors_;
 
-    Config config_;
-
-    friend class WebServerImpl;  // 添加友元声明
+    friend class WebServerImpl;
 };
 
-} // namespace xxcnc::web
+} // namespace web
+} // namespace xxcnc

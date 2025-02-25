@@ -60,12 +60,15 @@ install(
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# 添加可执行文件目标
-add_executable(xxcnc_server main.cpp)
+# 添加服务器可执行文件
+add_executable(xxcnc_server
+    main.cpp
+)
 
-# 链接依赖库
 target_link_libraries(xxcnc_server
     PRIVATE
         xxcnc
+        xxcnc_web
+        spdlog::spdlog
         nlohmann_json::nlohmann_json
 )

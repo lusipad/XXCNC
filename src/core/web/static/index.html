@@ -3,192 +3,495 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CNC 控制面板</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>XXCNC 控制面板</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="icon" type="image/x-icon" href="data:image/x-icon;,">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r156/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r156/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/three@0.126.1/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.126.1/examples/js/controls/OrbitControls.js"></script>
+    <script src="js/stats.min.js"></script>
     <style>
+        :root {
+            --dark-bg: #202020;
+            --medium-bg: #2a2a2a;
+            --light-bg: #363636;
+            --toolbar-bg: #424242;
+            --text-color: #f0f0f0;
+            --highlight-color: #3498db;
+            --button-bg: #525252;
+            --button-hover: #6a6a6a;
+            --tool-panel-width: 300px;
+            --status-height: 30px;
+            --toolbar-height: 40px;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-        }
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 300px 1fr 300px;
-            grid-template-rows: auto auto;
-            gap: 20px;
-        }
-        .card {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .status-item {
+            padding: 0;
+            background-color: var(--dark-bg);
+            color: var(--text-color);
+            overflow: hidden;
+            height: 100vh;
             display: flex;
-            justify-content: space-between;
-            margin: 10px 0;
+            flex-direction: column;
         }
-        .btn {
-            background: #007bff;
-            color: white;
+        
+        .app-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* 顶部工具栏 */
+        .toolbar {
+            background: var(--toolbar-bg);
+            height: var(--toolbar-height);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            z-index: 10;
+            overflow-x: auto;
+        }
+        
+        .toolbar-section {
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            border-right: 1px solid #555;
+        }
+        
+        .toolbar-section:last-child {
+            border-right: none;
+        }
+        
+        .toolbar-button {
+            background: none;
             border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
+            color: var(--text-color);
+            margin: 0 5px;
+            padding: 5px 10px;
             cursor: pointer;
-            margin: 5px;
-        }
-        .btn:hover {
-            background: #0056b3;
-        }
-        .control-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        #log {
-            border: 1px solid #ddd;
-            padding: 10px;
-            background: #f9f9f9;
             border-radius: 4px;
-            overflow-y: auto;
-            max-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
         }
-        .trajectory-card {
-            grid-column: 2;
-            grid-row: 1 / span 2;
+        
+        .toolbar-button:hover {
+            background-color: var(--button-hover);
         }
-        .left-column {
-            grid-column: 1;
+        
+        .toolbar-button i {
+            margin-right: 5px;
         }
-        .right-column {
-            grid-column: 3;
+        
+        /* 底部状态栏 */
+        .status-bar {
+            height: var(--status-height);
+            background: var(--toolbar-bg);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 0.9rem;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
         }
-        #trajectory-view {
-            width: 100%;
-            height: 800px;
+        
+        .status-item {
+            margin-right: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .status-label {
+            margin-right: 5px;
+            color: #aaa;
+        }
+        
+        /* 左侧面板 */
+        .sidebar {
+            width: 50px;
+            background: var(--medium-bg);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 0;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+            z-index: 5;
+        }
+        
+        .sidebar-button {
+            width: 40px;
+            height: 40px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+        
+        .sidebar-button:hover {
+            background: var(--button-hover);
+        }
+        
+        .sidebar-button.active {
+            background: var(--highlight-color);
+        }
+        
+        /* 主内容区域 */
+        .main-content {
+            flex: 1;
+            display: flex;
             position: relative;
         }
+        
+        /* 绘图区域 */
+        .canvas-area {
+            flex: 1;
+            background: #000;
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+        
         #trajectoryCanvas {
             width: 100%;
             height: 100%;
+            display: block;
         }
-        .view-controls {
+        
+        .grid-overlay {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background-image: 
+                linear-gradient(to right, rgba(50, 50, 50, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(50, 50, 50, 0.1) 1px, transparent 1px),
+                linear-gradient(to right, rgba(100, 100, 100, 0.2) 10px, transparent 10px),
+                linear-gradient(to bottom, rgba(100, 100, 100, 0.2) 10px, transparent 10px);
+            background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+        }
+        
+        /* 右侧工具面板 */
+        .tool-panel {
+            width: var(--tool-panel-width);
+            background: var(--medium-bg);
+            padding: 0;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+            overflow-y: auto;
             display: flex;
-            gap: 10px;
             flex-direction: column;
         }
-        .tool-path-info {
-            margin-top: 20px;
-            max-height: 200px;
+        
+        .control-section {
+            background: var(--light-bg);
+            margin: 5px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .control-header {
+            padding: 10px;
+            background: var(--toolbar-bg);
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .control-content {
+            padding: 10px;
+        }
+        
+        .axis-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .axis-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--button-bg);
+            border: none;
+            color: var(--text-color);
+            height: 40px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+        
+        .axis-button:hover {
+            background-color: var(--button-hover);
+        }
+        
+        .position-display {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 5px 15px;
+            margin-bottom: 10px;
+        }
+        
+        .position-label {
+            font-weight: bold;
+            text-align: right;
+        }
+        
+        .position-value {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 1.1rem;
+        }
+        
+        .feed-control {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .feed-slider {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        /* 操作按钮组 */
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .action-button {
+            background-color: var(--button-bg);
+            border: none;
+            color: var(--text-color);
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .action-button i {
+            margin-right: 5px;
+        }
+        
+        .action-button:hover {
+            background-color: var(--button-hover);
+        }
+        
+        .action-button.primary {
+            background-color: #2980b9;
+        }
+        
+        .action-button.primary:hover {
+            background-color: #3498db;
+        }
+        
+        .action-button.warning {
+            background-color: #d35400;
+        }
+        
+        .action-button.warning:hover {
+            background-color: #e67e22;
+        }
+        
+        .action-button.danger {
+            background-color: #c0392b;
+        }
+        
+        .action-button.danger:hover {
+            background-color: #e74c3c;
+        }
+        
+        /* 日志面板 */
+        .log-view {
+            flex: 1;
+            margin-top: auto;
+            min-height: 150px;
+            background: rgba(0, 0, 0, 0.3);
+            font-family: monospace;
             overflow-y: auto;
+            border-top: 1px solid #666;
+            padding: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            word-break: break-all;
+        }
+        
+        .log-info {
+            color: #3498db;
+        }
+        
+        .log-warning {
+            color: #f39c12;
+        }
+        
+        .log-error {
+            color: #e74c3c;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- 左侧列 -->
-        <div class="left-column">
-            <div class="card">
-                <h2>系统状态</h2>
-                <div class="status-item">
-                    <div class="status-label">状态</div>
-                    <div class="status-value" id="status">未连接</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-label">X 轴位置</div>
-                    <div class="status-value" id="posX">0.000</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-label">Y 轴位置</div>
-                    <div class="status-value" id="posY">0.000</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-label">Z 轴位置</div>
-                    <div class="status-value" id="posZ">0.000</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-label">进给速度</div>
-                    <div class="status-value">
-                        <span id="feedRate">100</span>%
-                        <input type="range" id="feedRateValue" min="0" max="200" value="100">
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+        <div class="toolbar-section">
+            <button class="toolbar-button"><i class="fas fa-file"></i> 文件</button>
+            <button class="toolbar-button"><i class="fas fa-edit"></i> 编辑</button>
+            <button class="toolbar-button"><i class="fas fa-shapes"></i> 绘图</button>
+            <button class="toolbar-button"><i class="fas fa-wrench"></i> 工艺</button>
+            <button class="toolbar-button"><i class="fas fa-sliders-h"></i> 参数</button>
+            <button class="toolbar-button"><i class="fas fa-cog"></i> 设置</button>
+        </div>
+        <div class="toolbar-section">
+            <button class="toolbar-button"><i class="fas fa-arrow-left"></i> 撤销</button>
+            <button class="toolbar-button"><i class="fas fa-arrow-right"></i> 重做</button>
+        </div>
+        <div class="toolbar-section">
+            <button class="toolbar-button"><i class="fas fa-play"></i> 运行</button>
+            <button class="toolbar-button"><i class="fas fa-pause"></i> 暂停</button>
+            <button class="toolbar-button"><i class="fas fa-stop"></i> 停止</button>
+        </div>
+    </div>
+    
+    <div class="app-container">
+        <!-- 左侧工具栏 -->
+        <div class="sidebar">
+            <button class="sidebar-button active" title="选择工具"><i class="fas fa-mouse-pointer"></i></button>
+            <button class="sidebar-button" title="绘制线条"><i class="fas fa-pen"></i></button>
+            <button class="sidebar-button" title="绘制矩形"><i class="fas fa-square"></i></button>
+            <button class="sidebar-button" title="绘制圆形"><i class="fas fa-circle"></i></button>
+            <button class="sidebar-button" title="绘制多边形"><i class="fas fa-draw-polygon"></i></button>
+            <button class="sidebar-button" title="测量工具"><i class="fas fa-ruler"></i></button>
+            <button class="sidebar-button" title="缩放工具"><i class="fas fa-search-plus"></i></button>
+            <button class="sidebar-button" title="平移工具"><i class="fas fa-arrows-alt"></i></button>
+        </div>
+        
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 绘图区域 -->
+            <div class="canvas-area">
+                <canvas id="trajectoryCanvas"></canvas>
+                <div class="grid-overlay"></div>
+            </div>
+            
+            <!-- 右侧工具面板 -->
+            <div class="tool-panel">
+                <!-- 机器状态和位置 -->
+                <div class="control-section">
+                    <div class="control-header">机器坐标</div>
+                    <div class="control-content">
+                        <div class="position-display">
+                            <div class="position-label">X:</div>
+                            <div class="position-value" id="posX">0.000</div>
+                            <div class="position-label">Y:</div>
+                            <div class="position-value" id="posY">0.000</div>
+                            <div class="position-label">Z:</div>
+                            <div class="position-value" id="posZ">0.000</div>
+                            <div class="position-label">W:</div>
+                            <div class="position-value">0.000</div>
+                            <div class="position-label">A:</div>
+                            <div class="position-value">0.000</div>
+                            <div class="position-label">B:</div>
+                            <div class="position-value">0.000</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="card">
-                <h2>手动控制</h2>
-                <div class="control-group">
-                    <button class="btn" id="btnHome">回零</button>
-                    <button class="btn" id="btnStop">停止</button>
-                    <button class="btn" id="btnEStop">紧急停止</button>
+                
+                <!-- 控制区域 -->
+                <div class="control-section">
+                    <div class="control-header">机器控制</div>
+                    <div class="control-content">
+                        <div class="feed-control">
+                            <label>进给速度: <span id="feedRate">100</span>%</label>
+                            <input type="range" id="feedRateValue" class="feed-slider" min="0" max="200" value="100">
+                        </div>
+                        
+                        <div class="axis-controls">
+                            <button class="axis-button">Z+</button>
+                            <button class="axis-button">↑</button>
+                            <button class="axis-button">A+</button>
+                            <button class="axis-button">←</button>
+                            <button class="axis-button">H</button>
+                            <button class="axis-button">→</button>
+                            <button class="axis-button">Z-</button>
+                            <button class="axis-button">↓</button>
+                            <button class="axis-button">A-</button>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="action-button primary" id="btnHome"><i class="fas fa-home"></i> 回零</button>
+                            <button class="action-button warning" id="btnStop"><i class="fas fa-stop"></i> 停止</button>
+                            <button class="action-button primary" id="start-btn"><i class="fas fa-play"></i> 开始</button>
+                            <button class="action-button danger" id="btnEStop"><i class="fas fa-exclamation-triangle"></i> 急停</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-
-            <div class="card">
-                <h2>程序控制</h2>
-                <div class="status-item">
-                    <div class="status-label">当前文件</div>
-                    <div class="status-value" id="current-file">无</div>
+                
+                <!-- 程序控制 -->
+                <div class="control-section">
+                    <div class="control-header">程序控制</div>
+                    <div class="control-content">
+                        <div class="file-info">
+                            当前文件: <span id="current-file">无</span>
+                            <div id="progress">0%</div>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="action-button primary" id="file-manager-btn" onclick="document.getElementById('file-upload').click();"><i class="fas fa-folder-open"></i> 文件管理</button>
+                            <input id="file-upload" type="file" accept=".nc,.gcode" style="display: none;">
+                            <button class="action-button" id="parse-btn"><i class="fas fa-code"></i> 解析</button>
+                            <button class="action-button warning" id="test-trajectory-btn" onclick="generateTestTrajectory()"><i class="fas fa-vial"></i> 测试轨迹</button>
+                            <button class="action-button danger" id="test-upload-btn" onclick="testFileUpload()"><i class="fas fa-upload"></i> 测试上传</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <div class="status-label">进度</div>
-                    <div class="status-value" id="progress">0%</div>
-                </div>
-                <div class="control-group">
-                    <button class="btn" id="start-btn">开始</button>
-                    <button class="btn" id="pause-btn">暂停</button>
-                    <button class="btn" id="resume-btn">继续</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 中间列（轨迹显示） -->
-        <div class="card trajectory-card">
-            <h2>轨迹显示</h2>
-            <div id="trajectory-view">
-                <canvas id="trajectoryCanvas"></canvas>
-                <div class="view-controls">
-                    <button class="btn" id="zoomIn">放大</button>
-                    <button class="btn" id="zoomOut">缩小</button>
-                    <button class="btn" id="resetView">重置视图</button>
-                    <button class="btn" id="clearTrajectory">清除轨迹</button>
-                </div>
-            </div>
-            <div class="tool-path-info">
-                <h3>刀路详细信息</h3>
-                <pre id="tool-path-info"></pre>
-            </div>
-        </div>
-
-        <!-- 右侧列 -->
-        <div class="right-column">
-            <div class="card">
-                <h2>文件管理</h2>
-                <input type="file" id="file-upload" accept=".nc,.gcode" style="display: none">
-                <button class="btn" onclick="document.getElementById('file-upload').click()">上传文件</button>
-                <div id="file-list">
-                    <!-- 文件列表将通过 JavaScript 动态添加 -->
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>操作日志</h2>
-                <div id="log">
-                    <pre id="log-content"></pre>
+                
+                <!-- 日志查看 -->
+                <div class="log-view" id="log">
+                    <div class="log-entry log-info">[系统] XXCNC控制系统已启动</div>
+                    <div class="log-entry">[状态] 机器状态: 空闲</div>
+                    <div class="log-entry">[位置] 当前位置: X:0.000 Y:0.000 Z:0.000</div>
                 </div>
             </div>
         </div>
     </div>
-    <script src="js/main.js"></script>
+    
+    <!-- 底部状态栏 -->
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="status-label">状态:</div>
+            <div id="status">空闲</div>
+        </div>
+        <div class="status-item">
+            <div class="status-label">速度:</div>
+            <div>0.000mm/min</div>
+        </div>
+        <div class="status-item">
+            <div class="status-label">工作坐标:</div>
+            <div>G54</div>
+        </div>
+    </div>
+    
     <script src="js/trajectory-viewer.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>
