@@ -1,4 +1,4 @@
-#include <xxcnc/web/WebServer.h>
+#include <xxcnc/core/web/WebServer.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <thread>
@@ -18,6 +18,11 @@ struct SystemStatus {
 int main() {
     WebServer server;
     SystemStatus status;
+
+    // 设置服务器配置
+    xxcnc::web::WebServer::Config config;
+    config.static_dir = "static";  // 相对于执行目录的路径
+    server.setConfig(config);
 
     // 设置状态回调
     server.setStatusCallback([&status]() -> json {
@@ -65,12 +70,12 @@ int main() {
     });
 
     // 启动服务器
-    if (!server.start("127.0.0.1", 8080)) {
+    if (!server.start("0.0.0.0", 8080)) {
         std::cerr << "Failed to start web server" << std::endl;
         return 1;
     }
 
-    std::cout << "Web server started on http://127.0.0.1:8080" << std::endl;
+    std::cout << "Web server started at http://localhost:8080" << std::endl;
     std::cout << "Available endpoints:" << std::endl;
     std::cout << "  GET  /api/health  - Health check" << std::endl;
     std::cout << "  GET  /api/status  - Get system status" << std::endl;

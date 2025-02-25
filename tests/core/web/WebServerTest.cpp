@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gmock/gmock-function-mocker.h>
+#include <gmock/gmock-spec-builders.h>
 #include "xxcnc/core/web/WebServer.h"
 #include "xxcnc/core/web/WebAPI.h"
 
@@ -9,10 +11,10 @@ using namespace xxcnc::web;
 class MockWebAPI : public WebAPI {
 public:
     MOCK_METHOD(StatusResponse, getSystemStatus, (), (override));
-    MOCK_METHOD(bool, executeCommand, (const std::string& command), (override));
-    MOCK_METHOD(FileListResponse, getFileList, (const std::string& path), (override));
+    MOCK_METHOD(bool, executeCommand, (const std::string&), (override));
+    MOCK_METHOD(FileListResponse, getFileList, (const std::string&), (override));
     MOCK_METHOD(ConfigResponse, getConfig, (), (override));
-    MOCK_METHOD(bool, updateConfig, (const ConfigData& config), (override));
+    MOCK_METHOD(bool, updateConfig, (const ConfigData&), (override));
 };
 
 class WebServerTest : public Test {
@@ -44,13 +46,16 @@ TEST_F(WebServerTest, ExecuteCommand_ValidCommand_ReturnsTrue) {
 }
 
 TEST_F(WebServerTest, GetFileList_ValidPath_ReturnsFiles) {
-    FileListResponse expectedFiles{{"test.nc", "program1.nc"}, {}};
+    FileListResponse expectedFiles{
+        {"test.nc", "program1.nc"},
+        {}
+    };
     EXPECT_CALL(*mockAPI, getFileList("/"))
         .WillOnce(Return(expectedFiles));
 
     auto response = server->handleFileListRequest("/");
-    EXPECT_THAT(response.files, Contains("/test.nc"));
-    EXPECT_THAT(response.files, Contains("/program1.nc"));
+    EXPECT_THAT(response.files, Contains("test.nc"));
+    EXPECT_THAT(response.files, Contains("program1.nc"));
 }
 
 TEST_F(WebServerTest, GetConfig_ReturnsValidConfig) {
@@ -86,13 +91,13 @@ TEST_F(WebServerTest, ExecuteCommand_InvalidCommand_ReturnsFalse) {
 }
 
 TEST_F(WebServerTest, GetFileList_InvalidPath_ReturnsEmpty) {
-    FileListResponse emptyResponse{{}, {"Invalid path"}};
+    FileListResponse emptyResponse{{}, {"Path not found"}};
     EXPECT_CALL(*mockAPI, getFileList("/invalid"))
         .WillOnce(Return(emptyResponse));
 
     auto response = server->handleFileListRequest("/invalid");
     EXPECT_TRUE(response.files.empty());
-    EXPECT_FALSE(response.errors.empty());
+    EXPECT_EQ(response.errors[0], "Path not found");
 }
 
 TEST_F(WebServerTest, UpdateConfig_InvalidConfig_ReturnsFalse) {

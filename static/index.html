@@ -94,24 +94,71 @@
                 <!-- 文件列表将通过JavaScript动态添加 -->
             </div>
         </div>
-
-        <div class="card">
-            <h2>程序控制</h2>
-            <div class="status-item">
-                <div class="status-label">当前文件</div>
-                <div class="status-value" id="current-file">无</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">进度</div>
-                <div class="status-value" id="progress">0%</div>
-            </div>
-            <div class="control-group">
-                <button class="btn" id="start-btn">开始</button>
-                <button class="btn" id="pause-btn">暂停</button>
-                <button class="btn" id="resume-btn">继续</button>
-            </div>
-        </div>
     </div>
-    <script src="js/main.js"></script>
+
+    <script>
+        // 定期更新状态
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                document.getElementById('status').textContent = data.status;
+                if (data.position) {
+                    document.getElementById('posX').textContent = data.position.x.toFixed(3);
+                    document.getElementById('posY').textContent = data.position.y.toFixed(3);
+                    document.getElementById('posZ').textContent = data.position.z.toFixed(3);
+                }
+            } catch (error) {
+                console.error('Failed to update status:', error);
+            }
+        }, 1000);
+
+        // 文件上传处理
+        document.getElementById('file-upload').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/files', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('文件上传成功');
+                    // 刷新文件列表
+                    updateFileList();
+                } else {
+                    alert('文件上传失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Upload failed:', error);
+                alert('文件上传失败');
+            }
+        });
+
+        // 更新文件列表
+        async function updateFileList() {
+            try {
+                const response = await fetch('/api/files');
+                const data = await response.json();
+                const fileList = document.getElementById('file-list');
+                fileList.innerHTML = '';
+                data.files.forEach(file => {
+                    const div = document.createElement('div');
+                    div.textContent = file;
+                    fileList.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Failed to update file list:', error);
+            }
+        }
+
+        // 初始化时更新文件列表
+        updateFileList();
+    </script>
 </body>
-</html>
+</html> 

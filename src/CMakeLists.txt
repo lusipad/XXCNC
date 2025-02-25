@@ -10,6 +10,9 @@ add_library(xxcnc
     core/CoreController.cpp
     # G代码解析器
     core/gcode/GCodeParser.cpp
+    # G代码宏指令管理器
+    core/gcode/GCodeMacro.cpp
+    core/gcode/GCodeMacroManager.cpp
     # 插补引擎
     core/motion/InterpolationEngine.cpp
     # 轴控制模块

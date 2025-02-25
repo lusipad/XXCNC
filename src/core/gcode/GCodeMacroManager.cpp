@@ -1,4 +1,4 @@
-#include "GCodeMacroManager.h"
+#include "xxcnc/core/gcode/GCodeMacroManager.h"
 #include <stdexcept>
 
 namespace xxcnc {

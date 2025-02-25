@@ -1,11 +1,7 @@
-#include "GCodeMacro.h"
+#include "xxcnc/core/gcode/GCodeMacro.h"
 #include <stdexcept>
 
 namespace xxcnc {
-
-GCodeMacro::GCodeMacro(const std::string& name)
-    : name_(name) {
-}
 
 void GCodeMacro::setParameter(const std::string& name, double value) {
     auto it = parameters_.find(name);
