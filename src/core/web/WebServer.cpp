@@ -131,6 +131,12 @@ private:
                 const auto& file = req.get_file_value("file");
                 if (const auto& callback = server_.getFileUploadCallback(); callback) {
                     res.set_content((*callback)(file.filename, file.content).dump(), "application/json");
+                } else if (api_) {
+                    auto result = api_->uploadFile(file.filename, file.content);
+                    res.set_content(nlohmann::json{
+                        {"success", result.success},
+                        {"error", result.error}
+                    }.dump(), "application/json");
                 } else {
                     res.status = 503;
                     res.set_content(R"({"error":"Service unavailable"})", "application/json");
@@ -139,6 +145,31 @@ private:
                 res.status = 500;
                 res.set_content(R"({"error":"Internal server error","message":")" + std::string(e.what()) + "\"}", "application/json");
                 spdlog::error("File upload error: {}", e.what());
+            }
+        });
+
+        // 文件解析
+        http_server_.Get(R"(/api/files/([^/]+)/parse)", [this](const httplib::Request& req, httplib::Response& res) {
+            try {
+                auto filename = req.matches[1];
+                if (const auto& callback = server_.getFileParseCallback(); callback) {
+                    res.set_content((*callback)(filename).dump(), "application/json");
+                } else if (api_) {
+                    auto result = api_->parseFile(filename);
+                    res.set_content(nlohmann::json{
+                        {"success", result.success},
+                        {"toolPathDetails", result.toolPathDetails},
+                        {"trajectoryPoints", result.trajectoryPoints},
+                        {"error", result.error}
+                    }.dump(), "application/json");
+                } else {
+                    res.status = 503;
+                    res.set_content(R"({"error":"Service unavailable"})", "application/json");
+                }
+            } catch (const std::exception& e) {
+                res.status = 500;
+                res.set_content(R"({"error":"Internal server error","message":")" + std::string(e.what()) + "\"}", "application/json");
+                spdlog::error("File parse error: {}", e.what());
             }
         });
 
@@ -157,7 +188,15 @@ private:
 
     nlohmann::json statusToJson(const StatusResponse& status) const {
         return nlohmann::json{
-            {"status", status.status},
+            {"state", status.state},
+            {"position", {
+                {"x", status.position.x},
+                {"y", status.position.y},
+                {"z", status.position.z}
+            }},
+            {"feedRate", status.feedRate},
+            {"currentFile", status.currentFile},
+            {"progress", status.progress},
             {"errorCode", status.errorCode},
             {"messages", status.messages}
         };
@@ -183,37 +222,76 @@ private:
 
 WebServer::WebServer()
     : impl_(std::make_unique<WebServerImpl>(nullptr, *this)) {
+    spdlog::info("WebServer created without API");
 }
 
 WebServer::WebServer(std::shared_ptr<WebAPI> api)
     : m_api(std::move(api))
     , impl_(std::make_unique<WebServerImpl>(m_api, *this)) {
+    spdlog::info("WebServer created with API");
 }
 
 WebServer::~WebServer() = default;
 
 bool WebServer::start(const std::string& host, int port) {
-    return impl_->start(host, port);
+    spdlog::info("Starting WebServer on {}:{}", host, port);
+    bool result = impl_->start(host, port);
+    if (result) {
+        spdlog::info("WebServer started successfully");
+    } else {
+        spdlog::error("WebServer failed to start");
+    }
+    return result;
 }
 
 void WebServer::stop() {
+    spdlog::info("Stopping WebServer");
     impl_->stop();
 }
 
 void WebServer::setStatusCallback(StatusCallback callback) {
+    spdlog::info("Setting status callback");
     statusCallback_ = std::move(callback);
 }
 
 void WebServer::setCommandCallback(CommandCallback callback) {
+    spdlog::info("Setting command callback");
     commandCallback_ = std::move(callback);
 }
 
 void WebServer::setFileUploadCallback(FileUploadCallback callback) {
+    spdlog::info("Setting file upload callback");
     fileUploadCallback_ = std::move(callback);
 }
 
+void WebServer::setFileParseCallback(FileParseCallback callback) {
+    spdlog::info("Setting file parse callback");
+    fileParseCallback_ = std::move(callback);
+}
+
 void WebServer::setConfigCallback(ConfigCallback callback) {
+    spdlog::info("Setting config callback");
     configCallback_ = std::move(callback);
+}
+
+const WebServer::StatusCallback& WebServer::getStatusCallback() const {
+    return statusCallback_;
+}
+
+const WebServer::CommandCallback& WebServer::getCommandCallback() const {
+    return commandCallback_;
+}
+
+const WebServer::FileUploadCallback& WebServer::getFileUploadCallback() const {
+    return fileUploadCallback_;
+}
+
+const WebServer::FileParseCallback& WebServer::getFileParseCallback() const {
+    return fileParseCallback_;
+}
+
+const WebServer::ConfigCallback& WebServer::getConfigCallback() const {
+    return configCallback_;
 }
 
 } // namespace xxcnc::web

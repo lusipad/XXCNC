@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XXCNC轨迹显示</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .trajectory-view {
+            flex: 1;
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            width: 300px;
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        canvas {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .control-group {
+            margin-bottom: 20px;
+        }
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="trajectory-view">
+            <canvas id="trajectoryCanvas"></canvas>
+        </div>
+        <div class="controls">
+            <div class="control-group">
+                <h3>视图控制</h3>
+                <button id="zoomIn">放大</button>
+                <button id="zoomOut">缩小</button>
+                <button id="resetView">重置视图</button>
+            </div>
+            <div class="control-group">
+                <h3>显示选项</h3>
+                <button id="toggleRapid">快速定位显示</button>
+                <button id="toggleFeed">进给路径显示</button>
+            </div>
+            <div class="control-group">
+                <h3>轨迹控制</h3>
+                <button id="clearTrajectory">清除轨迹</button>
+                <button id="saveView">保存视图</button>
+            </div>
+        </div>
+    </div>
+    <script src="js/trajectory-viewer.js"></script>
+</body>
+</html>

@@ -1,58 +1,138 @@
-# XXCNC
-一个用来验证一些想法的简单原型项目，主要由AI进行编写。
+// 全局变量
+let statusUpdateInterval;
 
-## 当前功能
+// API 端点
+const API = {
+    STATUS: '/api/status',
+    COMMAND: '/api/command',
+    FILE_UPLOAD: '/api/file/upload'
+};
 
-### Web 界面
-- 实时状态显示
-  - 机器运行状态
-  - XYZ轴位置
-  - 进给速度控制
-- 手动控制功能
-  - 回零
-  - 停止
-  - 紧急停止
-- G代码文件管理
-  - 文件上传
-  - 文件列表
+// DOM 元素
+const elements = {
+    status: document.getElementById('status'),
+    posX: document.getElementById('posX'),
+    posY: document.getElementById('posY'),
+    posZ: document.getElementById('posZ'),
+    speed: document.getElementById('speed'),
+    feedRate: document.getElementById('feedRate'),
+    feedRateValue: document.getElementById('feedRateValue'),
+    fileInput: document.getElementById('fileInput'),
+    fileList: document.getElementById('fileList')
+};
 
-### REST API
-- `/health` - 健康检查
-- `/api/status` - 获取系统状态
-- `/api/command` - 发送控制命令
-- `/api/files` - 文件管理
-- `/api/config` - 配置管理
+// 控制按钮事件监听
+document.getElementById('btnHome').addEventListener('click', () => sendCommand('home'));
+document.getElementById('btnStop').addEventListener('click', () => sendCommand('stop'));
+document.getElementById('btnPause').addEventListener('click', () => sendCommand('pause'));
+document.getElementById('btnResume').addEventListener('click', () => sendCommand('resume'));
 
-## 构建和运行
+// 进给速度滑块事件监听
+elements.feedRate.addEventListener('input', (e) => {
+    elements.feedRateValue.textContent = e.target.value;
+    sendCommand('setFeedRate', { value: parseInt(e.target.value) });
+});
 
-### 依赖
-- C++17
-- CMake 3.15+
-- cpp-httplib
-- nlohmann/json
-- spdlog
-- GTest (测试用)
+// 文件上传按钮事件监听
+document.getElementById('btnUpload').addEventListener('click', uploadFile);
 
-### 构建
-```bash
-mkdir build
-cd build
-cmake ..
-cmake --build .
-```
+// 更新机器状态
+async function updateStatus() {
+    try {
+        const response = await fetch(API.STATUS);
+        const data = await response.json();
+        
+        if (response.ok) {
+            updateStatusDisplay(data);
+        } else {
+            console.error('Status update failed:', data.error);
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+    }
+}
 
-### 运行
-```bash
-./xxcnc_server
-```
-服务器默认在 http://localhost:8080 启动
+// 更新状态显示
+function updateStatusDisplay(data) {
+    elements.status.textContent = data.state || '未知';
+    elements.posX.textContent = data.position?.x?.toFixed(3) || '0.000';
+    elements.posY.textContent = data.position?.y?.toFixed(3) || '0.000';
+    elements.posZ.textContent = data.position?.z?.toFixed(3) || '0.000';
+    elements.speed.textContent = data.feedRate || '0';
 
-## 开发说明
+    // 更新轨迹和刀路信息
+    updateTrajectory(data.position);
+    updateToolPathInfo(data.toolPathDetails);
+}
 
-本项目主要用于验证想法，代码由 AI 辅助编写。主要使用：
-- Claude (API设计和核心功能)
-- ChatGPT (问题修复和优化)
+// 更新刀路详细信息
+function updateToolPathInfo(toolPathDetails) {
+    const toolPathInfoElement = document.getElementById('tool-path-info');
+    toolPathInfoElement.textContent = toolPathDetails || '无刀路信息';
+}
 
-## 项目状态
+// 发送控制命令
+async function sendCommand(command, params = {}) {
+    try {
+        const response = await fetch(API.COMMAND, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                command,
+                ...params
+            })
+        });
 
-目前处于原型验证阶段，功能在持续添加中。
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || '命令执行失败');
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Error sending command:', error);
+        alert(`命令执行失败：${error.message}`);
+    }
+}
+
+// 上传文件
+async function uploadFile() {
+    const file = elements.fileInput.files[0];
+    if (!file) {
+        alert('请选择要上传的文件');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch(API.FILE_UPLOAD, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert('文件上传成功');
+            elements.fileInput.value = '';
+        } else {
+            throw new Error(data.error || '文件上传失败');
+        }
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        alert(`文件上传失败：${error.message}`);
+    }
+}
+
+// 启动状态更新定时器
+statusUpdateInterval = setInterval(updateStatus, 1000);
+
+// 页面卸载时清理定时器
+window.addEventListener('unload', () => {
+    if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+    }
+});

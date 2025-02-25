@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XXCNC 控制面板</title>
+    <title>CNC 控制面板</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;,">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r156/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r156/examples/js/controls/OrbitControls.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -12,10 +16,11 @@
             background-color: #f0f0f0;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1600px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: auto auto;
             gap: 20px;
         }
         .card {
@@ -46,72 +51,144 @@
             gap: 10px;
             margin-top: 10px;
         }
+        #log {
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            overflow-y: auto;
+            max-height: 200px;
+        }
+        .trajectory-card {
+            grid-column: 2;
+            grid-row: 1 / span 2;
+        }
+        .left-column {
+            grid-column: 1;
+        }
+        .right-column {
+            grid-column: 3;
+        }
+        #trajectory-view {
+            width: 100%;
+            height: 800px;
+            position: relative;
+        }
+        #trajectoryCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        .view-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            flex-direction: column;
+        }
+        .tool-path-info {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="card">
-            <h2>系统状态</h2>
-            <div class="status-item">
-                <div class="status-label">状态</div>
-                <div class="status-value" id="status">未连接</div>
+        <!-- 左侧列 -->
+        <div class="left-column">
+            <div class="card">
+                <h2>系统状态</h2>
+                <div class="status-item">
+                    <div class="status-label">状态</div>
+                    <div class="status-value" id="status">未连接</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">X 轴位置</div>
+                    <div class="status-value" id="posX">0.000</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Y 轴位置</div>
+                    <div class="status-value" id="posY">0.000</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Z 轴位置</div>
+                    <div class="status-value" id="posZ">0.000</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">进给速度</div>
+                    <div class="status-value">
+                        <span id="feedRate">100</span>%
+                        <input type="range" id="feedRateValue" min="0" max="200" value="100">
+                    </div>
+                </div>
             </div>
-            <div class="status-item">
-                <div class="status-label">X轴位置</div>
-                <div class="status-value" id="posX">0.000</div>
+
+            <div class="card">
+                <h2>手动控制</h2>
+                <div class="control-group">
+                    <button class="btn" id="btnHome">回零</button>
+                    <button class="btn" id="btnStop">停止</button>
+                    <button class="btn" id="btnEStop">紧急停止</button>
+                </div>
             </div>
-            <div class="status-item">
-                <div class="status-label">Y轴位置</div>
-                <div class="status-value" id="posY">0.000</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">Z轴位置</div>
-                <div class="status-value" id="posZ">0.000</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">进给速度</div>
-                <div class="status-value">
-                    <span id="feedRate">100</span>%
-                    <input type="range" id="feedRateValue" min="0" max="200" value="100">
+
+            <div class="card">
+                <h2>程序控制</h2>
+                <div class="status-item">
+                    <div class="status-label">当前文件</div>
+                    <div class="status-value" id="current-file">无</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">进度</div>
+                    <div class="status-value" id="progress">0%</div>
+                </div>
+                <div class="control-group">
+                    <button class="btn" id="start-btn">开始</button>
+                    <button class="btn" id="pause-btn">暂停</button>
+                    <button class="btn" id="resume-btn">继续</button>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <h2>手动控制</h2>
-            <div class="control-group">
-                <button class="btn" id="btnHome">回零</button>
-                <button class="btn" id="btnStop">停止</button>
-                <button class="btn" id="btnEStop">紧急停止</button>
+        <!-- 中间列（轨迹显示） -->
+        <div class="card trajectory-card">
+            <h2>轨迹显示</h2>
+            <div id="trajectory-view">
+                <canvas id="trajectoryCanvas"></canvas>
+                <div class="view-controls">
+                    <button class="btn" id="zoomIn">放大</button>
+                    <button class="btn" id="zoomOut">缩小</button>
+                    <button class="btn" id="resetView">重置视图</button>
+                    <button class="btn" id="clearTrajectory">清除轨迹</button>
+                </div>
+            </div>
+            <div class="tool-path-info">
+                <h3>刀路详细信息</h3>
+                <pre id="tool-path-info"></pre>
             </div>
         </div>
 
-        <div class="card">
-            <h2>文件管理</h2>
-            <input type="file" id="file-upload" accept=".nc,.gcode" style="display: none">
-            <button class="btn" onclick="document.getElementById('file-upload').click()">上传文件</button>
-            <div id="file-list">
-                <!-- 文件列表将通过JavaScript动态添加 -->
+        <!-- 右侧列 -->
+        <div class="right-column">
+            <div class="card">
+                <h2>文件管理</h2>
+                <input type="file" id="file-upload" accept=".nc,.gcode" style="display: none">
+                <button class="btn" onclick="document.getElementById('file-upload').click()">上传文件</button>
+                <div id="file-list">
+                    <!-- 文件列表将通过 JavaScript 动态添加 -->
+                </div>
             </div>
-        </div>
 
-        <div class="card">
-            <h2>程序控制</h2>
-            <div class="status-item">
-                <div class="status-label">当前文件</div>
-                <div class="status-value" id="current-file">无</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">进度</div>
-                <div class="status-value" id="progress">0%</div>
-            </div>
-            <div class="control-group">
-                <button class="btn" id="start-btn">开始</button>
-                <button class="btn" id="pause-btn">暂停</button>
-                <button class="btn" id="resume-btn">继续</button>
+            <div class="card">
+                <h2>操作日志</h2>
+                <div id="log">
+                    <pre id="log-content"></pre>
+                </div>
             </div>
         </div>
     </div>
     <script src="js/main.js"></script>
+    <script src="js/trajectory-viewer.js"></script>
 </body>
 </html>

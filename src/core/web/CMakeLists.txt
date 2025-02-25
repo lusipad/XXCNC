@@ -5,6 +5,9 @@ find_package(httplib CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
+# 复制静态资源到构建目录
+file(COPY ${CMAKE_SOURCE_DIR}/static/ DESTINATION ${CMAKE_BINARY_DIR}/static)
+
 add_library(xxcnc_web
     WebServer.cpp
 )
