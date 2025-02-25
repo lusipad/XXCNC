@@ -2,6 +2,7 @@
 
 #include "xxcnc/core/web/WebAPI.h"
 #include <filesystem>
+#include <vector>
 
 namespace xxcnc {
 namespace web {
@@ -14,17 +15,86 @@ public:
     // 状态监控API
     StatusResponse getSystemStatus() override {
         StatusResponse response;
-        response.status = "idle";
-        response.position = {0.0, 0.0, 0.0};
+        
+        if (isProcessing) {
+            response.status = "machining";
+            
+            // 模拟进度增加
+            currentProgress += 0.01;
+            if (currentProgress > 1.0) {
+                currentProgress = 1.0;
+                isProcessing = false;
+            }
+            
+            response.progress = currentProgress;
+            
+            // 更新位置 - 模拟机器移动
+            double angle = currentProgress * 2 * 3.14159;
+            response.position.x = 10.0 * std::cos(angle);
+            response.position.y = 10.0 * std::sin(angle);
+            response.position.z = 0.0;
+        } else {
+            response.status = "idle";
+            response.progress = 0.0;
+            response.position = {0.0, 0.0, 0.0};
+        }
+        
         response.feedRate = 100.0;
-        response.currentFile = "";
-        response.progress = 0.0;
+        response.currentFile = "test.nc";
         response.errorCode = 0;
+        
+        // 添加轨迹点到消息中
+        if (isProcessing) {
+            response.messages.push_back("Processing trajectory");
+            
+            // 添加一些轨迹点到响应中
+            // 这些轨迹点会在WebServer.cpp中被转换为JSON
+            response.trajectoryPoints.clear();
+            for (int i = 0; i < 10; i++) {
+                TrajectoryPoint point;
+                double pointAngle = currentProgress * 2 * 3.14159 * (i / 10.0);
+                point.x = 10.0 * std::cos(pointAngle);
+                point.y = 10.0 * std::sin(pointAngle);
+                point.z = 0.0;
+                point.isRapid = (i % 5 == 0);
+                point.command = "G01";
+                response.trajectoryPoints.push_back(point);
+            }
+        }
+        
         return response;
     }
 
     // 控制指令API
-    bool executeCommand(const std::string& /* command */) override {
+    bool executeCommand(const std::string& command) override {
+        spdlog::info("执行命令: {}", command);
+        
+        if (command == "motion.start") {
+            // 模拟开始加工
+            spdlog::info("开始加工");
+            isProcessing = true;
+            currentProgress = 0.0;
+            
+            // 生成一些模拟的轨迹点
+            simulatedTrajectoryPoints.clear();
+            for (int i = 0; i < 100; i++) {
+                TrajectoryPoint point;
+                point.x = 10.0 * std::cos(i * 0.1);
+                point.y = 10.0 * std::sin(i * 0.1);
+                point.z = 0.0;
+                point.isRapid = (i % 10 == 0);
+                point.command = "G01";
+                simulatedTrajectoryPoints.push_back(point);
+            }
+            
+            return true;
+        } else if (command == "motion.stop") {
+            // 模拟停止加工
+            spdlog::info("停止加工");
+            isProcessing = false;
+            return true;
+        }
+        
         return true;
     }
 
@@ -168,6 +238,11 @@ public:
     bool updateConfig(const ConfigData& /* config */) override {
         return true;
     }
+
+private:
+    bool isProcessing = false;
+    double currentProgress = 0.0;
+    std::vector<TrajectoryPoint> simulatedTrajectoryPoints;
 };
 
 } // namespace web

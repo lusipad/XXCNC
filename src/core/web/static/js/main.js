@@ -296,8 +296,14 @@ async function startMachining() {
     }
     
     try {
-        // 发送开始加工命令
-        const result = await sendCommand('startMachining', { filename: currentFile });
+        // 清除现有轨迹
+        if (window.trajectoryViewer) {
+            console.log("清除现有轨迹");
+            window.trajectoryViewer.clear();
+        }
+        
+        // 发送开始加工命令到motion模块
+        const result = await sendCommand('motion.start', { filename: currentFile });
         
         if (result) {
             logMessage(`[加工] 开始加工文件: ${currentFile}`, 'info');
@@ -322,8 +328,8 @@ async function stopMachining() {
     logMessage('[加工] 停止加工', 'info');
     
     try {
-        // 发送停止加工命令
-        const result = await sendCommand('stopMachining');
+        // 发送停止加工命令到motion模块
+        const result = await sendCommand('motion.stop');
         
         if (result) {
             logMessage('[加工] 加工已停止', 'warning');
@@ -345,29 +351,73 @@ async function stopMachining() {
 // 开始更新进度
 let progressUpdateInterval;
 function startProgressUpdate() {
+    console.log("开始更新进度...");
+    
+    // 立即更新一次状态
+    updateMachiningStatus();
+    
     // 每秒更新一次进度
-    progressUpdateInterval = setInterval(async function() {
-        try {
-            // 获取当前加工状态
-            const response = await fetch(API.STATUS);
-            const data = await response.json();
-            
-            if (response.ok && data.machining) {
-                // 更新进度显示
-                const progress = data.machining.progress || 0;
-                document.getElementById('progress').textContent = `${Math.round(progress * 100)}%`;
-                
-                // 如果加工完成，停止更新
-                if (progress >= 1) {
-                    stopProgressUpdate();
-                    document.getElementById('status').textContent = '已完成';
-                    logMessage('[加工] 加工已完成', 'info');
-                }
-            }
-        } catch (error) {
-            console.error("更新进度失败:", error);
+    progressUpdateInterval = setInterval(updateMachiningStatus, 1000);
+}
+
+// 更新加工状态
+async function updateMachiningStatus() {
+    try {
+        console.log("获取加工状态...");
+        const response = await fetch(API.STATUS);
+        
+        if (!response.ok) {
+            console.error("获取加工状态失败，HTTP状态码:", response.status);
+            return;
         }
-    }, 1000);
+        
+        const text = await response.text();
+        console.log("加工状态API响应文本:", text);
+        
+        try {
+            const data = JSON.parse(text);
+            console.log("解析后的加工状态数据:", data);
+            
+            if (data) {
+                // 更新状态显示
+                updateStatusDisplay(data);
+                
+                // 如果有machining字段，处理加工相关数据
+                if (data.machining) {
+                    console.log("处理加工数据:", data.machining);
+                    
+                    // 更新加工进度
+                    if (data.machining.progress !== undefined) {
+                        console.log("更新加工进度:", data.machining.progress);
+                        document.getElementById('progress').textContent = `${Math.round(data.machining.progress * 100)}%`;
+                    }
+                    
+                    // 如果有轨迹点，绘制轨迹
+                    if (data.machining.trajectoryPoints && data.machining.trajectoryPoints.length > 0) {
+                        console.log(`绘制 ${data.machining.trajectoryPoints.length} 个轨迹点`);
+                        drawTrajectory(data.machining.trajectoryPoints);
+                    } else {
+                        console.warn("没有轨迹点数据");
+                    }
+                } else {
+                    console.warn("数据中没有machining字段");
+                }
+                
+                // 如果加工已完成，停止更新
+                if (data.state !== "machining" && progressUpdateInterval) {
+                    console.log("加工已完成，停止更新");
+                    clearInterval(progressUpdateInterval);
+                    progressUpdateInterval = null;
+                }
+            } else {
+                console.error("加工状态数据为空");
+            }
+        } catch (jsonError) {
+            console.error("解析JSON失败:", jsonError, "原始文本:", text);
+        }
+    } catch (error) {
+        console.error('获取加工状态时出错:', error);
+    }
 }
 
 // 停止更新进度
@@ -612,45 +662,95 @@ function startStatusUpdates() {
 // 更新状态
 async function updateStatus() {
     try {
+        console.log("开始获取状态...");
         const response = await fetch(API.STATUS);
-        const data = await response.json();
+        console.log("状态API响应状态:", response.status);
         
-        if (response.ok) {
-            updateStatusDisplay(data);
+        if (!response.ok) {
+            console.error("获取状态失败，HTTP状态码:", response.status);
+            return;
+        }
+        
+        const text = await response.text();
+        console.log("状态API响应文本:", text);
+        
+        try {
+            const data = JSON.parse(text);
+            console.log("解析后的状态数据:", data);
+            
+            if (data) {
+                updateStatusDisplay(data);
+            } else {
+                console.error("状态数据为空");
+            }
+        } catch (jsonError) {
+            console.error("解析JSON失败:", jsonError, "原始文本:", text);
         }
     } catch (error) {
-        console.error('Error updating status:', error);
+        console.error('获取状态时出错:', error);
     }
 }
 
 // 更新状态显示
 function updateStatusDisplay(data) {
+    console.log("更新状态显示:", data);
+    
     // 更新位置显示
     if (data.position) {
+        console.log("更新位置:", data.position);
         document.getElementById('posX').textContent = data.position.x.toFixed(3);
         document.getElementById('posY').textContent = data.position.y.toFixed(3);
         document.getElementById('posZ').textContent = data.position.z.toFixed(3);
+    } else {
+        console.warn("数据中没有position字段");
     }
     
     // 更新状态
     if (data.state) {
+        console.log("更新状态:", data.state);
         document.getElementById('status').textContent = data.state;
+    } else {
+        console.warn("数据中没有state字段");
     }
     
     // 更新进给速度
     if (data.feedRate) {
+        console.log("更新进给速度:", data.feedRate);
         document.getElementById('feedRate').textContent = data.feedRate;
         document.getElementById('feedRateValue').value = data.feedRate;
+    } else {
+        console.warn("数据中没有feedRate字段");
     }
     
     // 更新当前文件
     if (data.currentFile && data.currentFile !== '') {
+        console.log("更新当前文件:", data.currentFile);
         document.getElementById('current-file').textContent = data.currentFile;
     }
     
     // 更新进度
     if (data.progress !== undefined) {
+        console.log("更新进度:", data.progress);
         document.getElementById('progress').textContent = `${Math.round(data.progress * 100)}%`;
+    } else {
+        console.warn("数据中没有progress字段");
+    }
+    
+    // 如果有machining字段，处理加工相关数据
+    if (data.machining) {
+        console.log("处理加工数据:", data.machining);
+        
+        // 更新加工进度
+        if (data.machining.progress !== undefined) {
+            console.log("更新加工进度:", data.machining.progress);
+            document.getElementById('progress').textContent = `${Math.round(data.machining.progress * 100)}%`;
+        }
+        
+        // 如果有轨迹点，绘制轨迹
+        if (data.machining.trajectoryPoints && data.machining.trajectoryPoints.length > 0) {
+            console.log(`绘制 ${data.machining.trajectoryPoints.length} 个轨迹点`);
+            drawTrajectory(data.machining.trajectoryPoints);
+        }
     }
 }
 
@@ -693,6 +793,8 @@ function drawTrajectory(trajectoryPoints) {
         return;
     }
     
+    console.log("轨迹点数据:", JSON.stringify(trajectoryPoints.slice(0, 2)));
+    
     // 检查轨迹查看器是否初始化
     if (!window.trajectoryViewer) {
         console.error("轨迹查看器未初始化");
@@ -724,7 +826,31 @@ function drawTrajectory(trajectoryPoints) {
         
         // 添加轨迹点
         console.log(`添加 ${trajectoryPoints.length} 个轨迹点`);
-        window.trajectoryViewer.addPath(trajectoryPoints);
+        
+        // 确保轨迹点数据格式正确
+        const formattedPoints = trajectoryPoints.map(point => {
+            // 检查点是否有x, y, z坐标
+            if (point.x === undefined || point.y === undefined || point.z === undefined) {
+                console.warn("轨迹点缺少坐标:", point);
+                return null;
+            }
+            
+            return {
+                x: point.x,
+                y: point.y,
+                z: point.z,
+                isRapid: !!point.isRapid,
+                command: point.command || "G01"
+            };
+        }).filter(point => point !== null);
+        
+        if (formattedPoints.length === 0) {
+            console.error("格式化后没有有效的轨迹点");
+            return;
+        }
+        
+        console.log("格式化后的轨迹点:", JSON.stringify(formattedPoints.slice(0, 2)));
+        window.trajectoryViewer.addPath(formattedPoints);
         
         // 重设视图以适应轨迹
         console.log("重设视图");

@@ -8,6 +8,17 @@ namespace xxcnc {
 namespace web {
 
 /**
+ * @brief 轨迹点
+ */
+struct TrajectoryPoint {
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    bool isRapid = false;
+    std::string command;
+};
+
+/**
  * @brief 系统状态响应
  */
 struct StatusResponse {
@@ -22,6 +33,7 @@ struct StatusResponse {
     double progress = 0;    ///< 进度
     int errorCode = 0;      ///< 错误代码
     std::vector<std::string> messages;  ///< 状态消息列表
+    std::vector<TrajectoryPoint> trajectoryPoints; ///< 轨迹点列表
 
     bool operator==(const StatusResponse& other) const {
         return status == other.status &&
@@ -32,7 +44,8 @@ struct StatusResponse {
                currentFile == other.currentFile &&
                progress == other.progress &&
                errorCode == other.errorCode &&
-               messages == other.messages;
+               messages == other.messages &&
+               trajectoryPoints.size() == other.trajectoryPoints.size();
     }
 };
 

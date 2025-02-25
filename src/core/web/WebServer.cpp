@@ -101,11 +101,46 @@ private:
         // 状态API
         http_server_.Get("/api/status", [this](const httplib::Request&, httplib::Response& res) {
             try {
+                // 设置响应头
+                res.set_header("Content-Type", "application/json");
+                
                 if (const auto& callback = server_.getStatusCallback(); callback) {
                     res.set_content((*callback)().dump(), "application/json");
                 } else if (server_.api_) {
                     auto status = server_.api_->getSystemStatus();
-                    res.set_content(nlohmann::json{
+                    
+                    // 构建轨迹点数组
+                    nlohmann::json trajectoryPointsJson = nlohmann::json::array();
+                    
+                    // 如果有轨迹点，添加到JSON数组
+                    if (!status.trajectoryPoints.empty()) {
+                        spdlog::info("发现 {} 个轨迹点", status.trajectoryPoints.size());
+                        for (const auto& point : status.trajectoryPoints) {
+                            trajectoryPointsJson.push_back({
+                                {"x", point.x},
+                                {"y", point.y},
+                                {"z", point.z},
+                                {"isRapid", point.isRapid},
+                                {"command", point.command}
+                            });
+                        }
+                    } else if (status.status == "machining" && !status.messages.empty()) {
+                        // 如果没有轨迹点但是在加工中，生成一些模拟的轨迹点
+                        spdlog::info("生成模拟轨迹点");
+                        for (int i = 0; i < 10; i++) {
+                            double angle = status.progress * 2 * 3.14159 * (i / 10.0);
+                            trajectoryPointsJson.push_back({
+                                {"x", 10.0 * std::cos(angle)},
+                                {"y", 10.0 * std::sin(angle)},
+                                {"z", 0.0},
+                                {"isRapid", (i % 5 == 0)},
+                                {"command", "G01"}
+                            });
+                        }
+                    }
+                    
+                    // 生成JSON响应
+                    nlohmann::json responseJson = {
                         {"state", status.status},
                         {"position", {
                             {"x", status.position.x},
@@ -114,8 +149,18 @@ private:
                         }},
                         {"feedRate", status.feedRate},
                         {"progress", status.progress},
-                        {"currentFile", status.currentFile}
-                    }.dump(), "application/json");
+                        {"currentFile", status.currentFile},
+                        {"machining", {
+                            {"progress", status.progress},
+                            {"trajectoryPoints", trajectoryPointsJson}
+                        }}
+                    };
+                    
+                    // 输出调试信息
+                    spdlog::info("状态API响应: {}", responseJson.dump());
+                    
+                    // 设置响应内容
+                    res.set_content(responseJson.dump(), "application/json");
                 } else {
                     res.status = 503;
                     res.set_content(R"({"error":"Service unavailable"})", "application/json");

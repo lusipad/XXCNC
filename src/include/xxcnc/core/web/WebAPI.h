@@ -1,9 +1,10 @@
 #pragma once
 
+#include "WebTypes.h"
 #include <string>
 #include <vector>
 #include <memory>
-#include "WebTypes.h"
+#include <filesystem>
 
 namespace xxcnc {
 namespace web {
@@ -14,17 +15,6 @@ namespace web {
 struct FileUploadResponse {
     bool success = false;
     std::string error;
-};
-
-/**
- * @brief 轨迹点
- */
-struct TrajectoryPoint {
-    double x = 0.0;
-    double y = 0.0;
-    double z = 0.0;
-    bool isRapid = false;
-    std::string command;
 };
 
 /**
