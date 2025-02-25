@@ -456,11 +456,13 @@
                             <div id="progress">0%</div>
                         </div>
                         <div class="action-buttons">
-                            <button class="action-button primary" id="file-manager-btn" onclick="document.getElementById('file-upload').click();"><i class="fas fa-folder-open"></i> 文件管理</button>
+                            <button class="action-button primary" id="file-manager-btn"><i class="fas fa-file-import"></i> 装载</button>
                             <input id="file-upload" type="file" accept=".nc,.gcode" style="display: none;">
                             <button class="action-button" id="parse-btn"><i class="fas fa-code"></i> 解析</button>
-                            <button class="action-button warning" id="test-trajectory-btn" onclick="generateTestTrajectory()"><i class="fas fa-vial"></i> 测试轨迹</button>
-                            <button class="action-button danger" id="test-upload-btn" onclick="testFileUpload()"><i class="fas fa-upload"></i> 测试上传</button>
+                        </div>
+                        <div class="action-buttons" style="margin-top: 10px;">
+                            <button class="action-button primary" id="start-machining-btn"><i class="fas fa-play"></i> 开始加工</button>
+                            <button class="action-button danger" id="stop-machining-btn"><i class="fas fa-stop"></i> 停止加工</button>
                         </div>
                     </div>
                 </div>

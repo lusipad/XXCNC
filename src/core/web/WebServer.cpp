@@ -237,11 +237,19 @@ private:
                 const auto& file = req.get_file_value("file");
                 spdlog::info("获取到文件: {}, 大小: {} 字节", file.filename, file.content.size());
                 
+                // 检查是否有原始文件名参数
+                std::string filename = file.filename;
+                if (req.has_param("originalFilename")) {
+                    std::string originalFilename = req.get_param_value("originalFilename");
+                    spdlog::info("获取到原始文件名: {}", originalFilename);
+                    filename = originalFilename;
+                }
+                
                 if (const auto& callback = server_.getFileUploadCallback(); callback) {
-                    auto response = (*callback)(file.filename, file.content);
+                    auto response = (*callback)(filename, file.content);
                     res.set_content(response.dump(), "application/json");
                 } else if (server_.api_) {
-                    auto response = server_.api_->uploadFile(file.filename, file.content);
+                    auto response = server_.api_->uploadFile(filename, file.content);
                     nlohmann::json json_response = {
                         {"success", response.success}
                     };

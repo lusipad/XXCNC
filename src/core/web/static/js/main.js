@@ -261,6 +261,121 @@ function initControlButtons() {
         sendCommand('start');
         logMessage('[命令] 开始执行程序', 'info');
     });
+    
+    // 开始加工和停止加工按钮
+    const startMachiningBtn = document.getElementById('start-machining-btn');
+    if (startMachiningBtn) {
+        startMachiningBtn.addEventListener('click', function() {
+            startMachining();
+        });
+    } else {
+        console.error("开始加工按钮未找到!");
+    }
+    
+    const stopMachiningBtn = document.getElementById('stop-machining-btn');
+    if (stopMachiningBtn) {
+        stopMachiningBtn.addEventListener('click', function() {
+            stopMachining();
+        });
+    } else {
+        console.error("停止加工按钮未找到!");
+    }
+}
+
+// 开始加工
+async function startMachining() {
+    console.log("开始加工");
+    logMessage('[加工] 开始加工', 'info');
+    
+    // 获取当前文件名
+    const currentFile = document.getElementById('current-file').textContent;
+    if (!currentFile || currentFile === '无') {
+        console.error("没有加载文件，无法开始加工");
+        logMessage('[错误] 没有加载文件，请先装载文件', 'error');
+        return;
+    }
+    
+    try {
+        // 发送开始加工命令
+        const result = await sendCommand('startMachining', { filename: currentFile });
+        
+        if (result) {
+            logMessage(`[加工] 开始加工文件: ${currentFile}`, 'info');
+            
+            // 更新UI状态
+            document.getElementById('status').textContent = '加工中';
+            
+            // 开始更新进度
+            startProgressUpdate();
+        } else {
+            logMessage('[错误] 开始加工失败', 'error');
+        }
+    } catch (error) {
+        console.error("开始加工失败:", error);
+        logMessage(`[错误] 开始加工失败: ${error.message}`, 'error');
+    }
+}
+
+// 停止加工
+async function stopMachining() {
+    console.log("停止加工");
+    logMessage('[加工] 停止加工', 'info');
+    
+    try {
+        // 发送停止加工命令
+        const result = await sendCommand('stopMachining');
+        
+        if (result) {
+            logMessage('[加工] 加工已停止', 'warning');
+            
+            // 更新UI状态
+            document.getElementById('status').textContent = '已停止';
+            
+            // 停止更新进度
+            stopProgressUpdate();
+        } else {
+            logMessage('[错误] 停止加工失败', 'error');
+        }
+    } catch (error) {
+        console.error("停止加工失败:", error);
+        logMessage(`[错误] 停止加工失败: ${error.message}`, 'error');
+    }
+}
+
+// 开始更新进度
+let progressUpdateInterval;
+function startProgressUpdate() {
+    // 每秒更新一次进度
+    progressUpdateInterval = setInterval(async function() {
+        try {
+            // 获取当前加工状态
+            const response = await fetch(API.STATUS);
+            const data = await response.json();
+            
+            if (response.ok && data.machining) {
+                // 更新进度显示
+                const progress = data.machining.progress || 0;
+                document.getElementById('progress').textContent = `${Math.round(progress * 100)}%`;
+                
+                // 如果加工完成，停止更新
+                if (progress >= 1) {
+                    stopProgressUpdate();
+                    document.getElementById('status').textContent = '已完成';
+                    logMessage('[加工] 加工已完成', 'info');
+                }
+            }
+        } catch (error) {
+            console.error("更新进度失败:", error);
+        }
+    }, 1000);
+}
+
+// 停止更新进度
+function stopProgressUpdate() {
+    if (progressUpdateInterval) {
+        clearInterval(progressUpdateInterval);
+        progressUpdateInterval = null;
+    }
 }
 
 // 初始化文件管理
@@ -339,36 +454,6 @@ function initFileManagement() {
     console.log("文件管理初始化完成!");
 }
 
-// 测试文件上传
-async function testFileUpload() {
-    console.log("测试文件上传");
-    logMessage('[测试] 开始测试文件上传', 'info');
-    
-    try {
-        // 创建一个简单的文本文件
-        const content = `G0 X0 Y0 Z0
-G1 X10 Y0 Z0
-G1 X10 Y10 Z0
-G1 X0 Y10 Z0
-G1 X0 Y0 Z0`;
-        
-        // 创建Blob对象
-        const blob = new Blob([content], { type: 'text/plain' });
-        
-        // 创建File对象
-        const file = new File([blob], 'test_upload.nc', { type: 'text/plain' });
-        
-        console.log(`创建测试文件: ${file.name}, 大小: ${file.size} 字节`);
-        logMessage(`[测试] 创建文件: ${file.name}`, 'info');
-        
-        // 上传文件
-        await uploadFile(file);
-    } catch (error) {
-        console.error("测试文件上传失败:", error);
-        logMessage(`[错误] 测试文件上传失败: ${error.message}`, 'error');
-    }
-}
-
 // 上传文件
 async function uploadFile(file) {
     if (!file) {
@@ -421,9 +506,9 @@ async function uploadFile(file) {
                 console.error("无法找到current-file元素");
             }
             
-            // 自动解析文件
-            console.log(`准备解析文件: ${file.name}`);
-            parseFile(file.name);
+            // 不自动解析文件，需要用户点击解析按钮
+            console.log(`文件已装载: ${file.name}，可以点击解析按钮进行解析`);
+            logMessage(`[文件] 已装载: ${file.name}，请点击解析按钮进行解析`, 'info');
         } else {
             console.error(`上传响应错误: ${data.error || '未知错误'}`);
             logMessage(`[错误] 上传失败: ${data.error || '未知错误'}`, 'error');
@@ -651,37 +736,4 @@ function drawTrajectory(trajectoryPoints) {
         console.error("轨迹绘制失败:", error);
         logMessage(`[错误] 轨迹绘制失败: ${error.message}`, 'error');
     }
-}
-
-// 生成测试轨迹
-function generateTestTrajectory() {
-    console.log("生成测试轨迹");
-    logMessage('[测试] 生成测试轨迹', 'info');
-    
-    const points = [];
-    
-    // 生成一个正弦波形
-    for (let i = -50; i <= 50; i++) {
-        points.push({
-            x: i * 2,
-            y: 30 * Math.sin(i * 0.1),
-            z: 0,
-            type: i % 5 === 0 ? "rapid" : "feed"
-        });
-    }
-    
-    // 加上一个方形
-    const squareSize = 40;
-    const squareOffset = 0;
-    points.push({x: -squareSize + squareOffset, y: -squareSize + squareOffset, z: 0, type: "rapid"});
-    points.push({x: squareSize + squareOffset, y: -squareSize + squareOffset, z: 0, type: "feed"});
-    points.push({x: squareSize + squareOffset, y: squareSize + squareOffset, z: 0, type: "feed"});
-    points.push({x: -squareSize + squareOffset, y: squareSize + squareOffset, z: 0, type: "feed"});
-    points.push({x: -squareSize + squareOffset, y: -squareSize + squareOffset, z: 0, type: "feed"});
-    
-    console.log(`生成了 ${points.length} 个测试轨迹点`);
-    
-    // 绘制轨迹
-    drawTrajectory(points);
-    logMessage('[轨迹] 测试轨迹已生成', 'info');
 }
