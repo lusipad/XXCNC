@@ -15,6 +15,8 @@ add_library(xxcnc
     core/gcode/GCodeMacroManager.cpp
     # 插补引擎
     core/motion/InterpolationEngine.cpp
+    # 基于时间的插补器
+    core/motion/TimeBasedInterpolator.cpp
     # 轴控制模块
     core/motion/AxisController.cpp
 )

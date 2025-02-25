@@ -1,3 +1,4 @@
+// TrajectoryViewer类 - 用于显示轨迹的3D查看器
 class TrajectoryViewer {
     constructor(canvasId) {
         this.canvasId = canvasId;
@@ -5,9 +6,16 @@ class TrajectoryViewer {
     }
 
     init() {
+        console.log(`TrajectoryViewer初始化开始，使用画布ID: ${this.canvasId}`);
         const canvas = document.getElementById(this.canvasId);
         if (!canvas) {
             console.error(`Canvas with id ${this.canvasId} not found`);
+            return;
+        }
+
+        // 检查THREE.js是否可用
+        if (typeof THREE === 'undefined') {
+            console.error("THREE.js库未加载");
             return;
         }
 
@@ -28,16 +36,24 @@ class TrajectoryViewer {
         // 创建渲染器
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: canvas,
-            antialias: true 
+            antialias: true,
+            alpha: true
         });
         this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        
+        console.log(`渲染器初始化完成，尺寸: ${canvas.clientWidth}x${canvas.clientHeight}`);
 
         // 添加轨道控制器
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.25;
-        this.controls.screenSpacePanning = false;
-        this.controls.maxPolarAngle = Math.PI / 2;
+        if (typeof THREE.OrbitControls === 'undefined') {
+            console.error("THREE.OrbitControls未加载");
+        } else {
+            this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+            this.controls.enableDamping = true;
+            this.controls.dampingFactor = 0.25;
+            this.controls.screenSpacePanning = false;
+            this.controls.maxPolarAngle = Math.PI / 2;
+            console.log("轨道控制器初始化完成");
+        }
 
         // 创建坐标系网格和轴
         this.createGrid();
@@ -47,18 +63,16 @@ class TrajectoryViewer {
         this.trajectoryPoints = [];
         this.trajectoryLine = null;
         
-        // 显示帧率
-        try {
-            this.stats = new Stats();
-            document.body.appendChild(this.stats.domElement);
-            this.stats.domElement.style.position = 'absolute';
-            this.stats.domElement.style.top = '0px';
-            this.stats.domElement.style.right = '0px';
-            this.stats.domElement.style.zIndex = '100';
-        } catch (error) {
-            console.error("无法初始化Stats:", error);
-            this.stats = null;
-        }
+        // 添加光源
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        this.scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(50, 50, 50);
+        this.scene.add(directionalLight);
+        
+        // 记录最后绘制的点
+        this.lastPoint = null;
         
         // 启动动画循环
         this.animate();
@@ -66,8 +80,7 @@ class TrajectoryViewer {
         // 响应窗口大小变化
         window.addEventListener('resize', () => this.handleResize());
         
-        // 记录最后绘制的点
-        this.lastPoint = null;
+        console.log("TrajectoryViewer初始化完成");
     }
 
     createGrid() {
@@ -128,18 +141,27 @@ class TrajectoryViewer {
     }
     
     addPath(points) {
-        if (!points || !Array.isArray(points) || points.length < 2) return;
+        if (!points || !Array.isArray(points) || points.length < 2) {
+            console.error("无效的轨迹点数组", points);
+            return;
+        }
+        
+        console.log(`TrajectoryViewer添加路径：${points.length}个点`);
         
         // 清除现有轨迹
         this.clear();
         
         // 添加所有点
         points.forEach(point => {
-            this.trajectoryPoints.push({
-                x: point.x, 
-                y: point.y, 
-                z: point.z || 0
-            });
+            if (typeof point.x === 'number' && typeof point.y === 'number') {
+                this.trajectoryPoints.push({
+                    x: point.x, 
+                    y: point.y, 
+                    z: point.z || 0
+                });
+            } else {
+                console.warn("跳过无效的轨迹点:", point);
+            }
         });
         
         // 更新轨迹线
@@ -257,13 +279,12 @@ class TrajectoryViewer {
         requestAnimationFrame(() => this.animate());
         
         // 更新控制器
-        this.controls.update();
+        if (this.controls) {
+            this.controls.update();
+        }
         
         // 渲染场景
         this.renderer.render(this.scene, this.camera);
-        
-        // 更新状态
-        if (this.stats) this.stats.update();
     }
 }
 

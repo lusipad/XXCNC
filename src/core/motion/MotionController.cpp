@@ -6,6 +6,7 @@ namespace motion {
 
 MotionController::MotionController()
     : interpolationEngine_(std::make_unique<core::motion::InterpolationEngine>())
+    , timeBasedInterpolator_(std::make_unique<core::motion::TimeBasedInterpolator>(1)) // 默认1ms插补周期
     , isMoving_(false)
 {
 }
@@ -96,9 +97,8 @@ bool MotionController::moveLinear(const std::map<std::string, double>& targetPos
     });
     params.deceleration = params.acceleration;
 
-    // 生成插补点
-    auto points = interpolationEngine_->linearInterpolation(start, end, params);
-    if (points.empty()) {
+    // 使用基于时间的插补器规划路径
+    if (!timeBasedInterpolator_->planLinearPath(start, end, params)) {
         return false;
     }
 
@@ -133,6 +133,7 @@ void MotionController::update(double deltaTime)
         return;
     }
 
+    // 检查各轴状态
     bool allIdle = true;
     for (auto& [name, axis] : axes_) {
         axis->update(deltaTime);
@@ -141,9 +142,71 @@ void MotionController::update(double deltaTime)
         }
     }
 
-    if (allIdle) {
+    // 如果所有轴都空闲，但插补还未完成，则获取下一个插补点并移动
+    if (allIdle && !timeBasedInterpolator_->isFinished()) {
+        core::motion::Point nextPoint;
+        if (timeBasedInterpolator_->getNextPoint(nextPoint)) {
+            // 更新各轴目标位置
+            std::map<std::string, double> targetPositions;
+            
+            auto xAxis = axes_.find("X");
+            if (xAxis != axes_.end()) {
+                targetPositions["X"] = nextPoint.x;
+            }
+            
+            auto yAxis = axes_.find("Y");
+            if (yAxis != axes_.end()) {
+                targetPositions["Y"] = nextPoint.y;
+            }
+            
+            auto zAxis = axes_.find("Z");
+            if (zAxis != axes_.end()) {
+                targetPositions["Z"] = nextPoint.z;
+            }
+            
+            // 启动各轴运动
+            for (const auto& [name, position] : targetPositions) {
+                auto axis = getAxis(name);
+                // 使用较高的速度，因为这是1ms周期内的短距离移动
+                double maxVelocity = axis->getMaxVelocity();
+                if (!axis->moveTo(position, maxVelocity)) {
+                    emergencyStop();
+                    return;
+                }
+            }
+            
+            allIdle = false;
+        }
+    }
+
+    if (allIdle && timeBasedInterpolator_->isFinished()) {
         isMoving_ = false;
     }
+}
+
+void MotionController::setInterpolationPeriod(int periodMs)
+{
+    timeBasedInterpolator_->setInterpolationPeriod(periodMs);
+}
+
+int MotionController::getInterpolationPeriod() const
+{
+    return timeBasedInterpolator_->getInterpolationPeriod();
+}
+
+double MotionController::getInterpolationProgress() const
+{
+    return timeBasedInterpolator_->getProgress();
+}
+
+bool MotionController::isInterpolationFinished() const
+{
+    return timeBasedInterpolator_->isFinished();
+}
+
+size_t MotionController::getInterpolationQueueSize() const
+{
+    return timeBasedInterpolator_->getQueueSize();
 }
 
 } // namespace motion

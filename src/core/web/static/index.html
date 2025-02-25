@@ -1,15 +1,34 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XXCNC 控制面板</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="icon" type="image/x-icon" href="data:image/x-icon;,">
-    <script src="https://unpkg.com/three@0.126.1/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.126.1/examples/js/controls/OrbitControls.js"></script>
-    <script src="js/stats.min.js"></script>
+    <title>XXCNC 控制界面</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
+        /* 内联样式，确保样式正确加载 */
+        .debug-console {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #1e1e1e;
+            color: #ddd;
+            padding: 10px;
+            font-family: monospace;
+            border-radius: 5px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+            border-left: 3px solid #555;
+        }
+        .log-info { border-left-color: #3498db; }
+        .log-warning { border-left-color: #f39c12; }
+        .log-error { border-left-color: #e74c3c; }
+        .log-success { border-left-color: #2ecc71; }
+        
         :root {
             --dark-bg: #202020;
             --medium-bg: #2a2a2a;
@@ -391,6 +410,7 @@
             <!-- 绘图区域 -->
             <div class="canvas-area">
                 <canvas id="trajectoryCanvas"></canvas>
+                <canvas id="trajectoryCanvas3D" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
                 <div class="grid-overlay"></div>
             </div>
             
@@ -496,7 +516,136 @@
         </div>
     </div>
     
+    <!-- 引入THREE.js库 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    
     <script src="js/trajectory-viewer.js"></script>
     <script src="js/main.js"></script>
+    
+    <!-- 直接添加内联JavaScript来测试按钮功能 -->
+    <script>
+        // 日志函数
+        function logMessage(message, type = 'info') {
+            const debugConsole = document.getElementById('debugConsole');
+            if (!debugConsole) return;
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = message;
+            debugConsole.appendChild(entry);
+            
+            // 自动滚动到底部
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+            
+            // 如果日志条目太多，删除旧的
+            while (debugConsole.children.length > 100) {
+                debugConsole.removeChild(debugConsole.firstChild);
+            }
+        }
+        
+        // 测试按钮点击事件
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("内联脚本: 页面加载完成，初始化按钮...");
+            
+            // 测试所有按钮
+            const allButtons = document.querySelectorAll('button');
+            allButtons.forEach(button => {
+                button.addEventListener('click', function(event) {
+                    console.log(`按钮被点击: ${this.textContent.trim()}`);
+                    logMessage(`[测试] 按钮被点击: ${this.textContent.trim()}`, 'info');
+                });
+            });
+            
+            // 特别处理开始加工按钮
+            const startMachiningBtn = document.getElementById('start-machining-btn');
+            if (startMachiningBtn) {
+                startMachiningBtn.addEventListener('click', function() {
+                    console.log("开始加工按钮被点击");
+                    logMessage('[测试] 开始加工按钮被点击', 'info');
+                    
+                    // 更新UI状态
+                    document.getElementById('status').textContent = '加工中';
+                    
+                    // 模拟进度
+                    let progress = 0;
+                    const progressInterval = setInterval(() => {
+                        progress += 5;
+                        if (progress > 100) {
+                            clearInterval(progressInterval);
+                            document.getElementById('status').textContent = '空闲';
+                            logMessage('[测试] 加工完成', 'success');
+                            return;
+                        }
+                        
+                        document.getElementById('progress').textContent = `${progress}%`;
+                    }, 500);
+                });
+            } else {
+                console.error("开始加工按钮未找到！");
+            }
+            
+            // 特别处理文件装载按钮
+            const fileManagerBtn = document.getElementById('file-manager-btn');
+            const fileUploadInput = document.getElementById('file-upload');
+            
+            if (fileManagerBtn && fileUploadInput) {
+                fileManagerBtn.addEventListener('click', function() {
+                    console.log("文件管理按钮被点击");
+                    logMessage('[测试] 文件管理按钮被点击', 'info');
+                    
+                    try {
+                        fileUploadInput.click();
+                    } catch (e) {
+                        console.error("触发文件输入点击失败：", e);
+                    }
+                });
+                
+                fileUploadInput.addEventListener('change', function(event) {
+                    if (this.files && this.files.length > 0) {
+                        const fileName = this.files[0].name;
+                        console.log("选择的文件：", fileName);
+                        
+                        // 更新UI
+                        document.getElementById('current-file').textContent = fileName;
+                        logMessage(`[测试] 文件已装载: ${fileName}`, 'info');
+                    }
+                });
+            }
+            
+            // 特别处理清除轨迹按钮
+            const clearTrajectoryBtn = document.getElementById('clear-trajectory-btn');
+            if (clearTrajectoryBtn) {
+                clearTrajectoryBtn.addEventListener('click', function() {
+                    console.log("清除轨迹按钮被点击");
+                    logMessage('[测试] 清除轨迹按钮被点击', 'info');
+                    
+                    // 清除轨迹
+                    if (typeof clearTrajectory === 'function') {
+                        clearTrajectory();
+                    } else {
+                        // 如果main.js中的函数不可用，直接在这里清除
+                        // 清除3D轨迹
+                        if (window.trajectoryViewer && typeof window.trajectoryViewer.clear === 'function') {
+                            window.trajectoryViewer.clear();
+                        }
+                        
+                        // 清除2D轨迹
+                        const canvas = document.getElementById('trajectoryCanvas');
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        }
+                        
+                        logMessage('[轨迹] 轨迹已清除', 'info');
+                    }
+                });
+            } else {
+                console.error("清除轨迹按钮未找到！");
+            }
+            
+            logMessage('[系统] 界面初始化完成', 'success');
+        });
+    </script>
 </body>
 </html>

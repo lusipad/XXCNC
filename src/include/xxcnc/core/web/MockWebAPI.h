@@ -1,8 +1,14 @@
 #pragma once
 
 #include "xxcnc/core/web/WebAPI.h"
+#include <chrono>
+#include <thread>
+#include <mutex>
 #include <filesystem>
-#include <vector>
+#include <fstream>
+#include <sstream>
+#include <spdlog/spdlog.h>
+#include "xxcnc/core/motion/TimeBasedInterpolator.h"
 #include <nlohmann/json.hpp>
 
 namespace xxcnc {
@@ -10,39 +16,86 @@ namespace web {
 
 class MockWebAPI : public WebAPI {
 public:
-    MockWebAPI() = default;
+    MockWebAPI() : 
+        interpolator_(std::make_unique<core::motion::TimeBasedInterpolator>(1)),
+        lastUpdateTime_(std::chrono::steady_clock::now())
+    {
+        // 创建上传目录
+        std::filesystem::path uploads_dir = std::filesystem::current_path() / "uploads";
+        if (!std::filesystem::exists(uploads_dir)) {
+            std::filesystem::create_directories(uploads_dir);
+            spdlog::info("创建上传目录: {}", uploads_dir.string());
+        }
+    }
     ~MockWebAPI() override = default;
 
     // 状态监控API
     StatusResponse getSystemStatus() override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         StatusResponse response;
         
+        // 更新进度
         if (isProcessing) {
             response.status = "machining";
             
-            // 模拟进度增加
-            currentProgress += 0.01;
-            if (currentProgress > 1.0) {
-                currentProgress = 1.0;
-                isProcessing = false;
+            // 计算时间差，更新进度
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdateTime_).count();
+            lastUpdateTime_ = now;
+            
+            // 模拟进度增加，降低增加速度，每秒增加1%
+            if (elapsed > 0) {
+                double progressIncrement = (elapsed / 1000.0) * 0.01;
+                currentProgress += progressIncrement;
+                spdlog::info("进度更新: +{:.2f}%, 当前 {:.2f}%", 
+                    progressIncrement * 100, currentProgress * 100);
+                
+                if (currentProgress > 1.0) {
+                    currentProgress = 1.0;
+                    isProcessing = false;
+                    response.status = "idle";
+                    spdlog::info("加工完成");
+                }
             }
             
             response.progress = currentProgress;
             
-            // 更新位置 - 模拟机器移动
-            if (!simulatedTrajectoryPoints.empty()) {
-                // 根据当前进度计算当前位置
+            // 使用基于时间的插补器获取当前位置
+            core::motion::Point currentPoint;
+            if (interpolator_->getNextPoint(currentPoint)) {
+                response.position.x = currentPoint.x;
+                response.position.y = currentPoint.y;
+                response.position.z = currentPoint.z;
+                spdlog::debug("从插补器获取位置: ({:.3f}, {:.3f}, {:.3f})", 
+                    currentPoint.x, currentPoint.y, currentPoint.z);
+            } else if (!simulatedTrajectoryPoints.empty()) {
+                // 如果插补器没有点，则使用模拟轨迹点
                 size_t pointIndex = static_cast<size_t>(currentProgress * (simulatedTrajectoryPoints.size() - 1));
                 if (pointIndex < simulatedTrajectoryPoints.size()) {
-                    const auto& currentPoint = simulatedTrajectoryPoints[pointIndex];
-                    response.position.x = currentPoint.x;
-                    response.position.y = currentPoint.y;
-                    response.position.z = currentPoint.z;
+                    const auto& point = simulatedTrajectoryPoints[pointIndex];
+                    response.position.x = point.x;
+                    response.position.y = point.y;
+                    response.position.z = point.z;
+                    spdlog::debug("使用模拟轨迹点[{}]: ({:.3f}, {:.3f}, {:.3f})", 
+                        pointIndex, point.x, point.y, point.z);
+                }
+            }
+            
+            // 添加所有轨迹点到响应中（始终返回）
+            if (!simulatedTrajectoryPoints.empty()) {
+                // 根据进度确定需要显示的轨迹点
+                size_t displayPointCount = static_cast<size_t>(currentProgress * simulatedTrajectoryPoints.size());
+                displayPointCount = std::min(displayPointCount, simulatedTrajectoryPoints.size());
+                
+                // 只发送已经完成的轨迹点
+                response.trajectoryPoints.clear();
+                for (size_t i = 0; i < displayPointCount; i++) {
+                    response.trajectoryPoints.push_back(simulatedTrajectoryPoints[i]);
                 }
                 
-                // 添加所有轨迹点到响应中
-                response.trajectoryPoints = simulatedTrajectoryPoints;
-                spdlog::info("状态API返回 {} 个轨迹点", response.trajectoryPoints.size());
+                spdlog::info("状态API返回 {} 个轨迹点（总计 {} 个）", 
+                    response.trajectoryPoints.size(), simulatedTrajectoryPoints.size());
             }
         } else {
             response.status = "idle";
@@ -89,14 +142,48 @@ public:
                 simulatedTrajectoryPoints = parseResponse.trajectoryPoints;
                 spdlog::info("成功加载轨迹点: {} 个", simulatedTrajectoryPoints.size());
                 
+                // 使用基于时间的插补器规划路径
+                if (!simulatedTrajectoryPoints.empty()) {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    
+                    // 清空现有插补队列
+                    interpolator_->clearQueue();
+                    
+                    // 设置插补参数
+                    core::motion::InterpolationEngine::InterpolationParams params;
+                    params.feedRate = 1000.0; // 默认进给速度 mm/min
+                    params.maxVelocity = 50.0; // 最大速度 mm/s
+                    params.acceleration = 500.0; // 加速度 mm/s^2
+                    params.deceleration = 500.0; // 减速度 mm/s^2
+                    
+                    // 规划路径
+                    for (size_t i = 0; i < simulatedTrajectoryPoints.size() - 1; ++i) {
+                        const auto& start = simulatedTrajectoryPoints[i];
+                        const auto& end = simulatedTrajectoryPoints[i + 1];
+                        
+                        core::motion::Point startPoint(start.x, start.y, start.z);
+                        core::motion::Point endPoint(end.x, end.y, end.z);
+                        
+                        // 根据是否为快速定位设置不同的进给速度
+                        params.feedRate = end.isRapid ? 3000.0 : 1000.0;
+                        
+                        interpolator_->planLinearPath(startPoint, endPoint, params);
+                    }
+                    
+                    spdlog::info("成功规划插补路径，队列中有 {} 个点", interpolator_->getQueueSize());
+                }
+                
                 // 开始加工流程
                 isProcessing = true;
                 currentProgress = 0.0;
+                lastUpdateTime_ = std::chrono::steady_clock::now();
                 return true;
             } else if (command == "motion.stop") {
                 // 模拟停止加工
                 spdlog::info("停止加工");
+                std::lock_guard<std::mutex> lock(mutex_);
                 isProcessing = false;
+                interpolator_->clearQueue();
                 return true;
             }
             
@@ -252,6 +339,9 @@ private:
     bool isProcessing = false;
     double currentProgress = 0.0;
     std::vector<TrajectoryPoint> simulatedTrajectoryPoints;
+    std::unique_ptr<core::motion::TimeBasedInterpolator> interpolator_;
+    std::chrono::time_point<std::chrono::steady_clock> lastUpdateTime_;
+    std::mutex mutex_;
 };
 
 } // namespace web
