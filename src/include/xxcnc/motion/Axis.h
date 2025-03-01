@@ -125,6 +125,12 @@ public:
      */
     void update(double deltaTime);
 
+    /**
+     * @brief 清除轨迹
+     * @return 是否成功
+     */
+    bool clearTrajectory();
+
 private:
     std::string name_;              ///< 轴名称
     AxisParameters params_;         ///< 轴参数

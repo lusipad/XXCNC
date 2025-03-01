@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <algorithm>
+#include "spdlog/spdlog.h"
 
 namespace xxcnc {
 namespace core {
@@ -141,12 +142,20 @@ bool TimeBasedInterpolator::getNextPoint(Point& point) {
 void TimeBasedInterpolator::clearQueue() {
     std::lock_guard<std::mutex> lock(queueMutex_);
     
+    // 记录清除前的队列大小
+    size_t queueSize = interpolationQueue_.size();
+    
+    // 清空队列
     while (!interpolationQueue_.empty()) {
         interpolationQueue_.pop();
     }
     
+    // 重置距离计数
     totalDistance_ = 0.0;
     completedDistance_ = 0.0;
+    
+    // 记录清除结果
+    spdlog::info("TimeBasedInterpolator::clearQueue - 已清除插补队列，原队列大小: {}", queueSize);
 }
 
 size_t TimeBasedInterpolator::getQueueSize() const {

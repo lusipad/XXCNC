@@ -338,26 +338,63 @@ async function startMachining() {
 // 停止加工
 async function stopMachining() {
     console.log("停止加工");
-    logMessage('[加工] 停止加工', 'info');
+    logMessage('[加工] 正在停止加工...', 'warning');
     
     try {
+        // 禁用停止按钮，防止重复点击
+        const stopButton = document.getElementById('stopButton');
+        if (stopButton) {
+            stopButton.disabled = true;
+            stopButton.textContent = '正在停止...';
+        }
+        
         // 发送停止加工命令到 motion 模块
+        console.log("发送停止命令: motion.stop");
         const result = await sendCommand('motion.stop');
+        console.log("停止命令执行结果:", result);
         
         if (result) {
-            logMessage('[加工] 加工已停止', 'warning');
+            logMessage('[加工] 加工已停止', 'success');
             
             // 更新 UI 状态
             document.getElementById('status').textContent = '已停止';
             
             // 停止更新进度
+            console.log("停止更新进度");
             stopProgressUpdate();
+            
+            // 重新启用停止按钮
+            if (stopButton) {
+                stopButton.disabled = false;
+                stopButton.textContent = '停止';
+            }
+            
+            // 更新一次状态，确保显示最终位置
+            console.log("更新最终状态和轨迹");
+            await updateSystemStatus();
+            await updateTrajectory();
+            
+            console.log("停止过程完成");
         } else {
             logMessage('[错误] 停止加工失败', 'error');
+            console.error("停止命令返回失败");
+            
+            // 重新启用停止按钮
+            if (stopButton) {
+                stopButton.disabled = false;
+                stopButton.textContent = '停止';
+            }
         }
     } catch (error) {
         console.error("停止加工失败：", error);
         logMessage(`[错误] 停止加工失败：${error.message}`, 'error');
+        
+        // 重新启用停止按钮
+        const stopButton = document.getElementById('stopButton');
+        if (stopButton) {
+            stopButton.disabled = false;
+            stopButton.textContent = '停止';
+        }
     }
 }
 
@@ -477,23 +514,45 @@ async function uploadFile(file) {
     console.log(`开始上传文件：${file.name}, 大小：${file.size} 字节，类型：${file.type}`);
     logMessage(`[文件] 开始上传：${file.name} (${Math.round(file.size/1024)} KB)`, 'info');
     
-    // 模拟文件上传成功
-    console.log("模拟文件上传成功");
+    const formData = new FormData();
+    formData.append('file', file);
     
-    // 更新 UI
-    const currentFileElement = document.getElementById('current-file');
-    if (currentFileElement) {
-        currentFileElement.textContent = file.name;
-        console.log(`已更新当前文件显示为：${file.name}`);
-    } else {
-        console.error("无法找到 current-file 元素");
+    try {
+        const response = await fetch('/api/files', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log("文件上传成功");
+            logMessage(`[文件] 上传成功：${file.name}`, 'success');
+            
+            // 更新 UI
+            const currentFileElement = document.getElementById('current-file');
+            if (currentFileElement) {
+                currentFileElement.textContent = file.name;
+                console.log(`已更新当前文件显示为：${file.name}`);
+            } else {
+                console.error("无法找到 current-file 元素");
+            }
+            
+            // 不自动解析文件，需要用户点击解析按钮
+            console.log(`文件已装载：${file.name}，可以点击解析按钮进行解析`);
+            logMessage(`[文件] 已装载：${file.name}，请点击解析按钮进行解析`, 'info');
+            
+            return true;
+        } else {
+            console.error("文件上传失败:", data.error);
+            logMessage(`[错误] 文件上传失败: ${data.error || '未知错误'}`, 'error');
+            return false;
+        }
+    } catch (error) {
+        console.error("文件上传出错:", error);
+        logMessage(`[错误] 文件上传出错: ${error.message}`, 'error');
+        return false;
     }
-    
-    // 不自动解析文件，需要用户点击解析按钮
-    console.log(`文件已装载：${file.name}，可以点击解析按钮进行解析`);
-    logMessage(`[文件] 已装载：${file.name}，请点击解析按钮进行解析`, 'info');
-    
-    return true;
 }
 
 // 解析文件
@@ -537,7 +596,8 @@ async function sendCommand(command, params = {}) {
             ...params
         };
         
-        console.log(`发送到API: ${API.COMMAND}，请求体:`, JSON.stringify(payload));
+        const payloadStr = JSON.stringify(payload);
+        console.log(`发送到API: ${API.COMMAND}，请求体:`, payloadStr);
         
         // 使用真实API
         const response = await fetch(API.COMMAND, {
@@ -545,7 +605,7 @@ async function sendCommand(command, params = {}) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(payload)
+            body: payloadStr
         });
         
         console.log(`收到响应，状态码: ${response.status}`);
@@ -559,13 +619,16 @@ async function sendCommand(command, params = {}) {
             console.log(`API响应数据:`, data);
             
             if (response.ok) {
+                console.log(`命令 ${command} 执行成功`);
                 logMessage(`[命令] 命令执行成功：${command}`, 'success');
                 return true;
             } else {
+                console.error(`命令 ${command} 执行失败:`, data.error || '未知错误');
                 throw new Error(data.error || '命令执行失败');
             }
         } catch (jsonError) {
             console.error(`解析响应JSON失败:`, jsonError);
+            console.error(`原始响应:`, text);
             logMessage(`[错误] 解析响应JSON失败: ${jsonError.message}`, 'error');
             throw new Error(`解析响应失败: ${jsonError.message}`);
         }
@@ -651,7 +714,7 @@ async function updateTrajectory() {
         }
         
         const text = await response.text();
-        console.log("轨迹 API 响应文本：", text);
+        console.log("轨迹 API 响应文本长度：", text.length);
         
         try {
             const data = JSON.parse(text);
@@ -661,21 +724,28 @@ async function updateTrajectory() {
                 // 直接检查 trajectoryPoints 字段
                 if (data.trajectoryPoints && data.trajectoryPoints.length > 0) {
                     console.log(`获取到 ${data.trajectoryPoints.length} 个轨迹点，准备绘制`);
+                    console.log("轨迹点示例：", data.trajectoryPoints.slice(0, Math.min(5, data.trajectoryPoints.length)));
                     
                     // 确保轨迹点有效
                     const validPoints = data.trajectoryPoints.filter(point => 
                         typeof point.x === 'number' && 
-                        typeof point.y === 'number');
+                        typeof point.y === 'number' && 
+                        typeof point.z === 'number');
                     
                     if (validPoints.length > 0) {
                         console.log(`有效轨迹点：${validPoints.length} 个，开始绘制`);
                         drawTrajectory(validPoints);
                     } else {
                         console.warn("没有有效的轨迹点可以绘制");
+                        console.warn("无效轨迹点示例：", data.trajectoryPoints.slice(0, Math.min(5, data.trajectoryPoints.length)));
                     }
                 } else {
                     console.log("没有轨迹点数据");
-                    logMessage("[轨迹] 当前没有轨迹点数据", "warning");
+                    if (data.trajectoryPoints) {
+                        console.log("轨迹点数组为空");
+                    } else {
+                        console.log("响应中没有 trajectoryPoints 字段");
+                    }
                 }
             } else {
                 console.error("轨迹数据为空");
@@ -685,6 +755,66 @@ async function updateTrajectory() {
         }
     } catch (error) {
         console.error('获取轨迹时出错：', error);
+    }
+}
+
+// 清除轨迹
+async function clearTrajectory() {
+    try {
+        console.log("清除轨迹...");
+        logMessage('[轨迹] 正在清除轨迹...', 'info');
+        
+        // 禁用清除轨迹按钮，防止重复点击
+        const clearButton = document.getElementById('clear-trajectory-btn');
+        if (clearButton) {
+            clearButton.disabled = true;
+            clearButton.textContent = '正在清除...';
+        }
+        
+        // 发送清除轨迹命令
+        console.log("发送清除轨迹命令: trajectory.clear");
+        const result = await sendCommand('trajectory.clear');
+        console.log("清除轨迹命令执行结果:", result);
+        
+        if (result) {
+            logMessage('[轨迹] 轨迹已清除', 'success');
+            
+            // 清除3D轨迹查看器
+            if (window.trajectoryViewer) {
+                console.log("清除3D轨迹");
+                window.trajectoryViewer.clear();
+            }
+            
+            // 清除2D轨迹
+            const canvas = document.getElementById('trajectoryCanvas');
+            if (canvas) {
+                console.log("清除2D轨迹");
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawGrid(ctx, canvas.width, canvas.height);
+            }
+            
+            console.log("轨迹清除完成");
+        } else {
+            logMessage('[错误] 清除轨迹失败', 'error');
+            console.error("清除轨迹命令返回失败");
+        }
+        
+        // 重新启用清除轨迹按钮
+        if (clearButton) {
+            clearButton.disabled = false;
+            clearButton.textContent = '清除轨迹';
+        }
+    } catch (error) {
+        console.error("清除轨迹失败：", error);
+        logMessage(`[错误] 清除轨迹失败：${error.message}`, 'error');
+        
+        // 重新启用清除轨迹按钮
+        const clearButton = document.getElementById('clear-trajectory-btn');
+        if (clearButton) {
+            clearButton.disabled = false;
+            clearButton.textContent = '清除轨迹';
+        }
     }
 }
 
@@ -784,8 +914,10 @@ function drawTrajectory(trajectoryPoints) {
     // 使用3D轨迹查看器绘制
     if (window.trajectoryViewer) {
         try {
+            console.log("使用3D轨迹查看器绘制轨迹");
             // 清除现有轨迹并添加新轨迹
             window.trajectoryViewer.addPath(trajectoryPoints);
+            console.log("3D轨迹绘制完成");
         } catch (error) {
             console.error("使用轨迹查看器绘制轨迹时出错:", error);
         }
@@ -810,6 +942,7 @@ function drawTrajectory(trajectoryPoints) {
     
     // 绘制轨迹
     if (trajectoryPoints.length > 0) {
+        console.log("开始在2D画布上绘制轨迹");
         ctx.beginPath();
         ctx.strokeStyle = '#00FFFF';
         ctx.lineWidth = 2;
@@ -819,6 +952,7 @@ function drawTrajectory(trajectoryPoints) {
         const canvasX1 = firstPoint.x * 10 + canvas.width / 2;
         const canvasY1 = canvas.height / 2 - firstPoint.y * 10;
         ctx.moveTo(canvasX1, canvasY1);
+        console.log(`第一个点: (${firstPoint.x}, ${firstPoint.y}) -> 画布坐标: (${canvasX1}, ${canvasY1})`);
         
         // 连接到其他点
         for (let i = 1; i < trajectoryPoints.length; i++) {
@@ -826,70 +960,15 @@ function drawTrajectory(trajectoryPoints) {
             const canvasX = point.x * 10 + canvas.width / 2;
             const canvasY = canvas.height / 2 - point.y * 10;
             ctx.lineTo(canvasX, canvasY);
+            
+            if (i % 10 === 0 || i === trajectoryPoints.length - 1) {
+                console.log(`第 ${i} 个点: (${point.x}, ${point.y}) -> 画布坐标: (${canvasX}, ${canvasY})`);
+            }
         }
         
         ctx.stroke();
+        console.log("2D轨迹绘制完成");
     }
-}
-
-// 清除轨迹
-function clearTrajectory() {
-    console.log("清除轨迹");
-    
-    // 清除缓存的轨迹点
-    cachedTrajectoryPoints = [];
-    
-    // 清除3D轨迹
-    if (window.trajectoryViewer) {
-        window.trajectoryViewer.clear();
-        console.log("3D轨迹已清除");
-    }
-    
-    // 清除2D轨迹
-    const canvas = document.getElementById('trajectoryCanvas');
-    if (canvas) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawGrid(ctx, canvas.width, canvas.height);
-        console.log("2D轨迹已清除");
-    }
-    
-    logMessage('[轨迹] 轨迹已清除', 'info');
-}
-
-// 生成测试轨迹数据
-function generateTestTrajectory() {
-    console.log("生成测试轨迹数据");
-    
-    // 创建一个简单的正方形轨迹
-    const size = 50;
-    const center = { x: 0, y: 0, z: 0 };
-    
-    const trajectoryPoints = [
-        { x: center.x - size, y: center.y - size, z: 0 },
-        { x: center.x + size, y: center.y - size, z: 0 },
-        { x: center.x + size, y: center.y + size, z: 0 },
-        { x: center.x - size, y: center.y + size, z: 0 },
-        { x: center.x - size, y: center.y - size, z: 0 }
-    ];
-    
-    // 添加一个螺旋上升的部分
-    for (let i = 0; i < 50; i++) {
-        const angle = i * 0.2;
-        const radius = size * (1 - i / 100);
-        trajectoryPoints.push({
-            x: center.x + radius * Math.cos(angle),
-            y: center.y + radius * Math.sin(angle),
-            z: i / 2
-        });
-    }
-    
-    console.log(`生成了 ${trajectoryPoints.length} 个测试轨迹点`);
-    
-    // 绘制测试轨迹
-    drawTrajectory(trajectoryPoints);
-    
-    return trajectoryPoints;
 }
 
 // 更新加工状态
@@ -972,4 +1051,39 @@ async function updateMachiningStatus() {
         console.error('获取状态时出错：', error);
         logMessage(`[错误] 获取状态时出错: ${error.message}`, "error");
     }
+}
+
+// 生成测试轨迹数据
+function generateTestTrajectory() {
+    console.log("生成测试轨迹数据");
+    
+    // 创建一个简单的正方形轨迹
+    const size = 50;
+    const center = { x: 0, y: 0, z: 0 };
+    
+    const trajectoryPoints = [
+        { x: center.x - size, y: center.y - size, z: 0 },
+        { x: center.x + size, y: center.y - size, z: 0 },
+        { x: center.x + size, y: center.y + size, z: 0 },
+        { x: center.x - size, y: center.y + size, z: 0 },
+        { x: center.x - size, y: center.y - size, z: 0 }
+    ];
+    
+    // 添加一个螺旋上升的部分
+    for (let i = 0; i < 50; i++) {
+        const angle = i * 0.2;
+        const radius = size * (1 - i / 100);
+        trajectoryPoints.push({
+            x: center.x + radius * Math.cos(angle),
+            y: center.y + radius * Math.sin(angle),
+            z: i / 2
+        });
+    }
+    
+    console.log(`生成了 ${trajectoryPoints.length} 个测试轨迹点`);
+    
+    // 绘制测试轨迹
+    drawTrajectory(trajectoryPoints);
+    
+    return trajectoryPoints;
 }

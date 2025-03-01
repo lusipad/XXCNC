@@ -147,28 +147,40 @@ class TrajectoryViewer {
         }
         
         console.log(`TrajectoryViewer添加路径：${points.length}个点`);
+        console.log("轨迹点示例：", points.slice(0, Math.min(5, points.length)));
         
         // 清除现有轨迹
         this.clear();
         
         // 添加所有点
-        points.forEach(point => {
+        let validPointCount = 0;
+        points.forEach((point, index) => {
             if (typeof point.x === 'number' && typeof point.y === 'number') {
+                const z = typeof point.z === 'number' ? point.z : 0;
                 this.trajectoryPoints.push({
                     x: point.x, 
                     y: point.y, 
-                    z: point.z || 0
+                    z: z
                 });
+                validPointCount++;
+                
+                if (index < 5 || index % 100 === 0 || index === points.length - 1) {
+                    console.log(`添加点 ${index}: (${point.x}, ${point.y}, ${z})`);
+                }
             } else {
-                console.warn("跳过无效的轨迹点:", point);
+                console.warn(`跳过无效的轨迹点 ${index}:`, point);
             }
         });
+        
+        console.log(`成功添加了 ${validPointCount} 个有效轨迹点`);
         
         // 更新轨迹线
         this.updateTrajectoryLine();
         
         // 重置视图以显示整个路径
         this.resetView();
+        
+        console.log("轨迹路径添加完成");
     }
     
     addRapidMarker(position) {
@@ -182,11 +194,17 @@ class TrajectoryViewer {
     updateTrajectoryLine() {
         // 先移除已存在的轨迹线
         if (this.trajectoryLine) {
+            console.log("移除已存在的轨迹线");
             this.scene.remove(this.trajectoryLine);
         }
         
-        if (this.trajectoryPoints.length < 2) return;
+        if (this.trajectoryPoints.length < 2) {
+            console.log("轨迹点数量不足，无法创建轨迹线");
+            return;
+        }
 
+        console.log(`创建轨迹线，点数量: ${this.trajectoryPoints.length}`);
+        
         // 创建轨迹线
         const geometry = new THREE.BufferGeometry();
         
@@ -196,6 +214,10 @@ class TrajectoryViewer {
             positions[i * 3] = this.trajectoryPoints[i].x;
             positions[i * 3 + 1] = this.trajectoryPoints[i].y;
             positions[i * 3 + 2] = this.trajectoryPoints[i].z;
+            
+            if (i < 5 || i % 100 === 0 || i === this.trajectoryPoints.length - 1) {
+                console.log(`轨迹线点 ${i}: (${this.trajectoryPoints[i].x}, ${this.trajectoryPoints[i].y}, ${this.trajectoryPoints[i].z})`);
+            }
         }
         
         // 设置位置属性
@@ -209,6 +231,7 @@ class TrajectoryViewer {
         
         this.trajectoryLine = new THREE.Line(geometry, material);
         this.scene.add(this.trajectoryLine);
+        console.log("轨迹线创建完成并添加到场景中");
     }
 
     clear() {

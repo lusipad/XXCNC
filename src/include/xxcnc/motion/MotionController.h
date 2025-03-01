@@ -16,6 +16,16 @@ namespace motion {
 class MotionController {
 public:
     /**
+     * @brief 运动状态枚举
+     */
+    enum class MotionState {
+        Idle,           ///< 空闲状态
+        Moving,         ///< 运动中
+        Interpolating,  ///< 插补中
+        Error           ///< 错误状态
+    };
+
+    /**
      * @brief 构造函数
      */
     MotionController();
@@ -97,11 +107,47 @@ public:
      */
     size_t getInterpolationQueueSize() const;
 
+    /**
+     * @brief 启动运动控制器执行已规划的轨迹
+     * @return 是否成功启动
+     */
+    bool startMotion();
+
+    /**
+     * @brief 清除当前已规划的轨迹
+     */
+    void clearTrajectory();
+
+    /**
+     * @brief 获取当前运动状态
+     * @return 运动状态
+     */
+    MotionState getMotionState() const;
+
+    /**
+     * @brief 设置当前运动状态
+     * @param state 运动状态
+     */
+    void setMotionState(MotionState state);
+
+protected:
+    /**
+     * @brief 发送轨迹点更新事件
+     * @param point 轨迹点
+     */
+    virtual void emit_trajectory_point([[maybe_unused]] const core::motion::Point& point) {}
+
+    /**
+     * @brief 发送清除轨迹事件
+     */
+    virtual void emit_clear_trajectory() {}
+
 private:
     std::map<std::string, std::shared_ptr<Axis>> axes_;
     std::unique_ptr<core::motion::InterpolationEngine> interpolationEngine_;
     std::unique_ptr<core::motion::TimeBasedInterpolator> timeBasedInterpolator_;
     bool isMoving_;
+    MotionState motionState_;
 };
 
 } // namespace motion

@@ -134,5 +134,18 @@ void Axis::update(double deltaTime)
     }
 }
 
+bool Axis::clearTrajectory() {
+    // 重置目标位置为当前位置，停止任何规划的轨迹
+    targetPosition_.store(currentPosition_.load());
+    targetVelocity_.store(0.0);
+    
+    // 如果轴处于运动状态，则设置为空闲状态
+    if (state_ == AxisState::MOVING) {
+        state_ = AxisState::IDLE;
+    }
+    
+    return true;
+}
+
 } // namespace motion
 } // namespace xxcnc

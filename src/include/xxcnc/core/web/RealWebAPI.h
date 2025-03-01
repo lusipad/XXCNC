@@ -66,6 +66,21 @@ public:
                 response.position.x = xAxis->getCurrentPosition();
                 response.position.y = yAxis->getCurrentPosition();
                 response.position.z = zAxis->getCurrentPosition();
+                
+                // 创建当前轨迹点
+                TrajectoryPoint currentPoint = {
+                    response.position.x,
+                    response.position.y,
+                    response.position.z,
+                    false // 非快速定位
+                };
+                
+                // 添加到轨迹历史
+                trajectoryHistory_.push_back(currentPoint);
+                
+                // 记录轨迹点数量
+                spdlog::info("当前轨迹历史点数: {}", trajectoryHistory_.size());
+                spdlog::info("当前位置: ({}, {}, {})", currentPoint.x, currentPoint.y, currentPoint.z);
             }
         } else {
             response.status = "idle";
@@ -80,9 +95,61 @@ public:
                 response.position.x = xAxis->getCurrentPosition();
                 response.position.y = yAxis->getCurrentPosition();
                 response.position.z = zAxis->getCurrentPosition();
+                
+                // 创建当前轨迹点
+                TrajectoryPoint currentPoint = {
+                    response.position.x,
+                    response.position.y,
+                    response.position.z,
+                    false // 非快速定位
+                };
+                
+                // 添加到轨迹历史（仅当位置发生变化时）
+                if (trajectoryHistory_.empty() || 
+                    std::abs(trajectoryHistory_.back().x - currentPoint.x) > 0.001 ||
+                    std::abs(trajectoryHistory_.back().y - currentPoint.y) > 0.001 ||
+                    std::abs(trajectoryHistory_.back().z - currentPoint.z) > 0.001) {
+                    
+                    trajectoryHistory_.push_back(currentPoint);
+                    spdlog::info("添加新轨迹点: ({}, {}, {})", currentPoint.x, currentPoint.y, currentPoint.z);
+                }
+                
+                // 记录轨迹点数量
+                spdlog::info("当前轨迹历史点数: {}", trajectoryHistory_.size());
+                spdlog::info("当前位置: ({}, {}, {})", currentPoint.x, currentPoint.y, currentPoint.z);
             } else {
                 response.position = {0.0, 0.0, 0.0};
             }
+        }
+        
+        // 无论是否处于加工状态，都返回完整的轨迹历史
+        if (!trajectoryHistory_.empty()) {
+            response.trajectoryPoints = trajectoryHistory_;
+            spdlog::info("响应中的轨迹点数: {}", response.trajectoryPoints.size());
+            
+            // 记录部分轨迹点用于调试
+            if (trajectoryHistory_.size() > 0) {
+                size_t sampleSize = std::min(size_t(5), trajectoryHistory_.size());
+                spdlog::info("轨迹点示例（前{}个）:", sampleSize);
+                for (size_t i = 0; i < sampleSize; i++) {
+                    spdlog::info("  点 {}: ({}, {}, {})", 
+                                i, 
+                                trajectoryHistory_[i].x, 
+                                trajectoryHistory_[i].y, 
+                                trajectoryHistory_[i].z);
+                }
+                
+                if (trajectoryHistory_.size() > 5) {
+                    size_t lastIndex = trajectoryHistory_.size() - 1;
+                    spdlog::info("  ... 及最后一个点 {}: ({}, {}, {})",
+                                lastIndex,
+                                trajectoryHistory_[lastIndex].x,
+                                trajectoryHistory_[lastIndex].y,
+                                trajectoryHistory_[lastIndex].z);
+                }
+            }
+        } else {
+            spdlog::info("轨迹历史为空");
         }
         
         response.feedRate = currentFeedRate_;
@@ -131,6 +198,9 @@ public:
                     // 确保所有轴都已使能
                     motionController_->enableAllAxes();
                     
+                    // 清除之前的运动规划
+                    motionController_->clearTrajectory();
+                    
                     // 执行轨迹
                     for (size_t i = 0; i < trajectoryPoints.size(); ++i) {
                         const auto& point = trajectoryPoints[i];
@@ -142,13 +212,22 @@ public:
                         targetPositions["Z"] = point.z;
                         
                         // 设置进给速度
-                        double feedRate = point.isRapid ? 3000.0 : 1000.0;
+                        double feedRate = point.isRapid ? 3000.0 : currentFeedRate_;
                         
                         // 执行直线插补运动
-                        motionController_->moveLinear(targetPositions, feedRate);
+                        if (!motionController_->moveLinear(targetPositions, feedRate)) {
+                            spdlog::error("运动规划失败，位置: ({}, {}, {})", point.x, point.y, point.z);
+                            return false;
+                        }
                     }
                     
                     spdlog::info("成功规划运动路径");
+                    
+                    // 开始执行运动
+                    if (!motionController_->startMotion()) {
+                        spdlog::error("启动运动失败");
+                        return false;
+                    }
                 }
                 
                 // 开始加工流程
@@ -161,7 +240,41 @@ public:
                 spdlog::info("停止加工");
                 std::lock_guard<std::mutex> lock(mutex_);
                 isProcessing = false;
-                motionController_->emergencyStop();
+                
+                // 确保停止所有轴的运动
+                spdlog::info("调用 emergencyStop");
+                bool stopResult = motionController_->emergencyStop();
+                spdlog::info("emergencyStop 结果: {}", stopResult ? "成功" : "失败");
+                
+                // 清除运动规划
+                spdlog::info("调用 clearTrajectory");
+                motionController_->clearTrajectory();
+                
+                // 等待轴停止运动
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                
+                // 清除当前文件
+                currentFile_.clear();
+                
+                spdlog::info("加工已停止");
+                return true;
+            } else if (command == "trajectory.clear") {
+                // 清除轨迹历史
+                spdlog::info("清除轨迹历史");
+                std::lock_guard<std::mutex> lock(mutex_);
+                
+                // 记录当前轨迹点数量
+                spdlog::info("当前轨迹历史点数: {}", trajectoryHistory_.size());
+                
+                // 清除轨迹历史
+                trajectoryHistory_.clear();
+                spdlog::info("轨迹历史已清除，当前点数: {}", trajectoryHistory_.size());
+                
+                // 通知前端清除轨迹
+                spdlog::info("通知前端清除轨迹");
+                motionController_->clearTrajectory();
+                
+                spdlog::info("轨迹清除完成");
                 return true;
             }
             
@@ -357,6 +470,7 @@ private:
     std::string currentFile_;
     std::chrono::time_point<std::chrono::steady_clock> lastUpdateTime_;
     std::mutex mutex_;
+    std::vector<TrajectoryPoint> trajectoryHistory_; // 存储轨迹历史
 };
 
 } // namespace web
