@@ -403,3 +403,4 @@ FodyWeavers.xsd
 build/
 out/
 vcpkg_installed/
+build2/

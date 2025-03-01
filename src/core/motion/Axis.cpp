@@ -41,8 +41,8 @@ bool Axis::moveTo(double position, double velocity)
         velocity = velocity > 0 ? params_.maxVelocity : -params_.maxVelocity;
     }
 
-    targetPosition_ = position;
-    targetVelocity_ = velocity;
+    targetPosition_.store(position);
+    targetVelocity_.store(velocity);
     state_ = AxisState::MOVING;
     return true;
 }
@@ -58,7 +58,7 @@ bool Axis::moveVelocity(double velocity)
         velocity = velocity > 0 ? params_.maxVelocity : -params_.maxVelocity;
     }
 
-    targetVelocity_ = velocity;
+    targetVelocity_.store(velocity);
     state_ = AxisState::MOVING;
     return true;
 }
@@ -70,11 +70,11 @@ bool Axis::stop(bool emergency)
     }
 
     if (emergency) {
-        currentVelocity_ = 0;
-        targetVelocity_ = 0;
+        currentVelocity_.store(0);
+        targetVelocity_.store(0);
         state_ = AxisState::IDLE;
     } else {
-        targetVelocity_ = 0;
+        targetVelocity_.store(0);
     }
 
     return true;
@@ -87,7 +87,7 @@ bool Axis::home()
     }
 
     state_ = AxisState::HOMING;
-    targetVelocity_ = params_.homeVelocity;
+    targetVelocity_.store(params_.homeVelocity);
     return true;
 }
 
@@ -98,37 +98,37 @@ void Axis::update(double deltaTime)
     }
 
     // 更新速度
-    double velocityDiff = targetVelocity_ - currentVelocity_;
+    double velocityDiff = targetVelocity_.load() - currentVelocity_.load();
     if (std::abs(velocityDiff) > params_.maxAcceleration * deltaTime) {
         velocityDiff = velocityDiff > 0 ? 
             params_.maxAcceleration * deltaTime : 
             -params_.maxAcceleration * deltaTime;
     }
-    currentVelocity_ += velocityDiff;
+    currentVelocity_.store(currentVelocity_.load() + velocityDiff);
 
     // 计算预期位置
-    double expectedPosition = currentPosition_ + currentVelocity_ * deltaTime;
+    double expectedPosition = currentPosition_.load() + currentVelocity_.load() * deltaTime;
 
     // 提前检查软限位并减速
-    double safetyMargin = std::abs(currentVelocity_ * deltaTime * 2); // 减小安全距离
+    double safetyMargin = std::abs(currentVelocity_.load() * deltaTime * 2); // 减小安全距离
     if (expectedPosition + safetyMargin >= params_.softLimitMax || 
         expectedPosition - safetyMargin <= params_.softLimitMin) {
         // 立即停止并进入错误状态
-        currentPosition_ = expectedPosition >= params_.softLimitMax ? 
-            params_.softLimitMax - 0.1 : params_.softLimitMin + 0.1;
-        currentVelocity_ = 0;
-        targetVelocity_ = 0;
+        currentPosition_.store(expectedPosition >= params_.softLimitMax ? 
+            params_.softLimitMax - 0.1 : params_.softLimitMin + 0.1);
+        currentVelocity_.store(0);
+        targetVelocity_.store(0);
         state_ = AxisState::ERROR;
         return;
     }
 
     // 更新位置，使用梯形积分提高精度
-    currentPosition_ = currentPosition_ + (currentVelocity_ + velocityDiff * 0.5) * deltaTime;
+    currentPosition_.store(currentPosition_.load() + (currentVelocity_.load() + velocityDiff * 0.5) * deltaTime);
 
     // 检查是否到达目标位置
     if (state_ == AxisState::MOVING) {
-        if (std::abs(currentVelocity_) < 0.001 && 
-            std::abs(targetVelocity_) < 0.001) {
+        if (std::abs(currentVelocity_.load()) < 0.001 && 
+            std::abs(targetVelocity_.load()) < 0.001) {
             state_ = AxisState::IDLE;
         }
     }

@@ -10,10 +10,10 @@ let lastTrajectoryUpdateTime = 0;
 
 // API 端点
 const API = {
-    STATUS: 'api/status',
-    COMMAND: 'api/command',
-    CONFIG: 'api/config',
-    FILES: 'api/files'
+    STATUS: '/api/status',
+    COMMAND: '/api/command',
+    CONFIG: '/api/config',
+    FILES: '/api/files'
 };
 
 // 初始化页面
@@ -294,48 +294,40 @@ async function startMachining() {
     
     try {
         // 清除现有轨迹
-        if (window.trajectoryViewer) {
-            console.log("清除现有轨迹");
-            window.trajectoryViewer.clear();
-        }
-        
-        // 清除缓存的轨迹点
-        cachedTrajectoryPoints = [];
+        clearTrajectory();
         
         // 获取当前文件名
         const currentFile = document.getElementById('current-file').textContent;
+        console.log(`当前文件名: "${currentFile}"`);
+        
         if (!currentFile || currentFile === '无') {
-            // 如果没有文件，生成测试轨迹数据用于演示
-            console.log("没有加载文件，生成测试轨迹");
-            generateTestTrajectory();
-            logMessage('[测试] 使用测试轨迹数据', 'info');
-        } else {
-            logMessage(`[加工] 开始加工文件：${currentFile}`, 'info');
+            console.error("没有加载文件，无法开始加工");
+            logMessage('[错误] 没有加载文件，无法开始加工', 'error');
+            return false;
         }
         
-        // 更新 UI 状态
-        document.getElementById('status').textContent = '加工中';
+        logMessage(`[加工] 开始加工文件：${currentFile}`, 'info');
         
-        // 模拟加工进度
-        let progress = 0;
-        const progressInterval = setInterval(() => {
-            progress += 1;
-            if (progress > 100) {
-                clearInterval(progressInterval);
-                document.getElementById('status').textContent = '空闲';
-                logMessage('[加工] 加工完成', 'info');
-                return;
-            }
-            
-            document.getElementById('progress').textContent = `${progress}%`;
-            
-            // 随着进度增加，添加更多轨迹点
-            if (progress % 5 === 0) {
-                updateTrajectory();
-            }
-        }, 500);
+        // 发送开始加工命令到后端
+        console.log(`准备发送motion.start命令，文件名: ${currentFile}`);
+        const result = await sendCommand('motion.start', { filename: currentFile });
+        console.log(`motion.start命令执行结果: ${result ? '成功' : '失败'}`);
         
-        return true;
+        if (result) {
+            // 更新 UI 状态
+            document.getElementById('status').textContent = '加工中';
+            
+            // 开始定时更新状态和轨迹
+            console.log("开始定时更新状态和轨迹");
+            startProgressUpdate();
+            
+            logMessage('[加工] 加工命令已发送，开始执行', 'success');
+            return true;
+        } else {
+            console.error("开始加工命令发送失败");
+            logMessage('[错误] 开始加工命令发送失败', 'error');
+            return false;
+        }
     } catch (error) {
         console.error("开始加工失败：", error);
         logMessage(`[错误] 开始加工失败：${error.message}`, 'error');
@@ -373,83 +365,21 @@ async function stopMachining() {
 let progressUpdateInterval;
 function startProgressUpdate() {
     console.log("开始更新进度...");
+    logMessage('[状态] 开始定时更新状态和轨迹', 'info');
+    
+    // 清除可能存在的旧定时器
+    if (progressUpdateInterval) {
+        console.log("清除现有进度更新定时器");
+        clearInterval(progressUpdateInterval);
+        progressUpdateInterval = null;
+    }
     
     // 立即更新一次状态
     updateMachiningStatus();
     
     // 每秒更新一次进度
     progressUpdateInterval = setInterval(updateMachiningStatus, 1000);
-}
-
-// 更新加工状态
-async function updateMachiningStatus() {
-    try {
-        console.log("获取加工状态...");
-        const response = await fetch(API.STATUS);
-        
-        if (!response.ok) {
-            console.error("获取加工状态失败，HTTP 状态码：", response.status);
-            return;
-        }
-        
-        const text = await response.text();
-        console.log("加工状态 API 响应文本：", text);
-        
-        try {
-            const data = JSON.parse(text);
-            console.log("解析后的加工状态数据：", data);
-            
-            if (data) {
-                updateStatusDisplay(data);
-                
-                // 如果有 machining 字段，处理加工相关数据
-                if (data.machining) {
-                    console.log("处理加工数据：", data.machining);
-                    
-                    // 更新加工进度
-                    if (data.machining.progress !== undefined) {
-                        console.log("更新加工进度：", data.machining.progress);
-                        document.getElementById('progress').textContent = `${Math.round(data.machining.progress * 100)}%`;
-                    }
-                    
-                    // 如果有轨迹点，绘制轨迹
-                    if (data.machining.trajectoryPoints && data.machining.trajectoryPoints.length > 0) {
-                        console.log(`绘制 ${data.machining.trajectoryPoints.length} 个轨迹点`);
-                        
-                        // 确保轨迹点有效
-                        const validPoints = data.machining.trajectoryPoints.filter(point => 
-                            typeof point.x === 'number' && 
-                            typeof point.y === 'number');
-                        
-                        if (validPoints.length > 0) {
-                            console.log(`有效轨迹点：${validPoints.length} 个，开始绘制`);
-                            drawTrajectory(validPoints);
-                        } else {
-                            console.warn("没有有效的轨迹点可以绘制");
-                        }
-                    } else {
-                        console.log("没有轨迹点数据");
-                        logMessage("[轨迹] 当前没有轨迹点数据", "warning");
-                    }
-                } else {
-                    console.warn("数据中没有 machining 字段");
-                }
-                
-                // 如果加工已完成，停止更新
-                if (data.state !== "machining" && progressUpdateInterval) {
-                    console.log("加工已完成，停止更新");
-                    clearInterval(progressUpdateInterval);
-                    progressUpdateInterval = null;
-                }
-            } else {
-                console.error("加工状态数据为空");
-            }
-        } catch (jsonError) {
-            console.error("解析 JSON 失败：", jsonError, "原始文本：", text);
-        }
-    } catch (error) {
-        console.error('获取加工状态时出错：', error);
-    }
+    console.log("状态更新定时器已设置");
 }
 
 // 停止更新进度
@@ -596,22 +526,20 @@ async function parseFile(filename) {
     }
 }
 
-// 发送命令到服务器
+// 发送命令到后端
 async function sendCommand(command, params = {}) {
     try {
         console.log(`发送命令: ${command}，参数:`, params);
+        logMessage(`[命令] 发送命令: ${command}`, 'info');
         
         const payload = {
             command: command,
             ...params
         };
         
-        // 模拟API响应，因为我们直接打开HTML文件，没有后端服务
-        console.log(`模拟API响应: ${command}`);
-        logMessage(`[命令] 命令已发送：${command}`, 'info');
+        console.log(`发送到API: ${API.COMMAND}，请求体:`, JSON.stringify(payload));
         
-        // 如果是在实际环境中，取消下面的注释使用真实API
-        /*
+        // 使用真实API
         const response = await fetch(API.COMMAND, {
             method: 'POST',
             headers: {
@@ -620,18 +548,27 @@ async function sendCommand(command, params = {}) {
             body: JSON.stringify(payload)
         });
         
-        const data = await response.json();
+        console.log(`收到响应，状态码: ${response.status}`);
         
-        if (response.ok) {
-            logMessage(`[命令] 命令执行成功：${command}`, 'info');
-            return true;
-        } else {
-            throw new Error(data.error || '命令执行失败');
+        const text = await response.text();
+        console.log(`API响应文本: ${text}`);
+        logMessage(`[响应] 状态码: ${response.status}, 内容: ${text}`, 'info');
+        
+        try {
+            const data = JSON.parse(text);
+            console.log(`API响应数据:`, data);
+            
+            if (response.ok) {
+                logMessage(`[命令] 命令执行成功：${command}`, 'success');
+                return true;
+            } else {
+                throw new Error(data.error || '命令执行失败');
+            }
+        } catch (jsonError) {
+            console.error(`解析响应JSON失败:`, jsonError);
+            logMessage(`[错误] 解析响应JSON失败: ${jsonError.message}`, 'error');
+            throw new Error(`解析响应失败: ${jsonError.message}`);
         }
-        */
-        
-        // 模拟成功响应
-        return true;
     } catch (error) {
         console.error(`命令执行失败 (${command}):`, error);
         logMessage(`[错误] 命令执行失败 (${command}): ${error.message}`, 'error');
@@ -953,4 +890,86 @@ function generateTestTrajectory() {
     drawTrajectory(trajectoryPoints);
     
     return trajectoryPoints;
+}
+
+// 更新加工状态
+async function updateMachiningStatus() {
+    try {
+        console.log("获取加工状态...");
+        logMessage('[状态] 正在获取加工状态', 'info');
+        
+        console.log(`请求状态API: ${API.STATUS}`);
+        const response = await fetch(API.STATUS);
+        console.log(`状态API响应状态码: ${response.status}`);
+        
+        if (!response.ok) {
+            console.error("获取加工状态失败，HTTP 状态码：", response.status);
+            logMessage(`[错误] 获取加工状态失败，HTTP 状态码: ${response.status}`, 'error');
+            return;
+        }
+        
+        const text = await response.text();
+        console.log("加工状态 API 响应文本：", text);
+        
+        try {
+            const data = JSON.parse(text);
+            console.log("解析后的加工状态数据：", data);
+            
+            if (data) {
+                updateStatusDisplay(data);
+                
+                // 如果有 machining 字段，处理加工相关数据
+                if (data.machining) {
+                    console.log("处理加工数据：", data.machining);
+                    
+                    // 更新加工进度
+                    if (data.machining.progress !== undefined) {
+                        console.log("更新加工进度：", data.machining.progress);
+                        document.getElementById('progress').textContent = `${Math.round(data.machining.progress * 100)}%`;
+                    }
+                    
+                    // 如果有轨迹点，绘制轨迹
+                    if (data.machining.trajectoryPoints && data.machining.trajectoryPoints.length > 0) {
+                        console.log(`绘制 ${data.machining.trajectoryPoints.length} 个轨迹点`);
+                        logMessage(`[轨迹] 收到 ${data.machining.trajectoryPoints.length} 个轨迹点`, 'info');
+                        
+                        // 确保轨迹点有效
+                        const validPoints = data.machining.trajectoryPoints.filter(point => 
+                            typeof point.x === 'number' && 
+                            typeof point.y === 'number');
+                        
+                        if (validPoints.length > 0) {
+                            console.log(`有效轨迹点：${validPoints.length} 个，开始绘制`);
+                            drawTrajectory(validPoints);
+                        } else {
+                            console.warn("没有有效的轨迹点可以绘制");
+                            logMessage("[警告] 没有有效的轨迹点可以绘制", "warning");
+                        }
+                    } else {
+                        console.log("没有轨迹点数据");
+                        logMessage("[轨迹] 当前没有轨迹点数据", "warning");
+                    }
+                } else {
+                    console.warn("数据中没有 machining 字段");
+                }
+                
+                // 如果加工已完成，停止更新
+                if (data.state !== "machining" && progressUpdateInterval) {
+                    console.log("加工已完成，停止更新");
+                    clearInterval(progressUpdateInterval);
+                    progressUpdateInterval = null;
+                    logMessage("[加工] 加工已完成", "success");
+                }
+            } else {
+                console.error("状态数据为空");
+                logMessage("[错误] 状态数据为空", "error");
+            }
+        } catch (jsonError) {
+            console.error("解析 JSON 失败：", jsonError, "原始文本：", text);
+            logMessage(`[错误] 解析状态 JSON 失败: ${jsonError.message}`, "error");
+        }
+    } catch (error) {
+        console.error('获取状态时出错：', error);
+        logMessage(`[错误] 获取状态时出错: ${error.message}`, "error");
+    }
 }

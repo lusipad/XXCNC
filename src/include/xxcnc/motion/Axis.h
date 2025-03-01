@@ -28,6 +28,7 @@ struct AxisParameters {
     double homeVelocity;   ///< 回零速度 (mm/s)
     double softLimitMin;   ///< 软限位最小值 (mm)
     double softLimitMax;   ///< 软限位最大值 (mm)
+    double homePosition;
 };
 
 /**
@@ -65,6 +66,18 @@ public:
      * @return 轴状态
      */
     AxisState getState() const { return state_; }
+
+    /**
+     * @brief 获取最大速度
+     * @return 最大速度 (mm/s)
+     */
+    double getMaxVelocity() const { return params_.maxVelocity; }
+
+    /**
+     * @brief 获取最大加速度
+     * @return 最大加速度 (mm/s^2)
+     */
+    double getMaxAcceleration() const { return params_.maxAcceleration; }
 
     /**
      * @brief 使能轴

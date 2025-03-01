@@ -9,52 +9,14 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include "xxcnc/core/web/WebServer.h"
 #include "xxcnc/core/web/WebTypes.h"
-#include "xxcnc/core/web/MockWebAPI.h"
+#include "xxcnc/core/web/RealWebAPI.h"
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 using namespace xxcnc::web;
 using json = nlohmann::json;
-
-// 模拟系统状态
-struct SystemStatus {
-    bool running = false;
-    double x_pos = 0.0;
-    double y_pos = 0.0;
-    double z_pos = 0.0;
-    double feed_rate = 100.0;  // 进给速度（百分比）
-    double progress = 0.0;     // 执行进度（0-1）
-    std::string current_file;  // 当前加载的文件
-    bool emergency_stop = false;  // 紧急停止状态
-};
-
-// 解析G代码行，返回位置信息
-struct GCodePosition {
-    double x = 0.0;
-    double y = 0.0;
-    double z = 0.0;
-    bool is_rapid = false;  // 是否为快速定位
-};
-
-GCodePosition parseGCodeLine(const std::string& line) {
-    GCodePosition pos;
-    std::istringstream iss(line);
-    std::string word;
-    
-    // 检查是否为快速定位（G0）
-    if (line.find("G0") != std::string::npos) {
-        pos.is_rapid = true;
-    }
-    
-    while (iss >> word) {
-        if (word[0] == 'X') {
-            pos.x = std::stod(word.substr(1));
-        } else if (word[0] == 'Y') {
-            pos.y = std::stod(word.substr(1));
-        } else if (word[0] == 'Z') {
-            pos.z = std::stod(word.substr(1));
-        }
-    }
-    return pos;
-}
 
 int main() {
     try {
@@ -80,57 +42,73 @@ int main() {
         
         spdlog::info("Starting XXCNC server...");
 
-        // 创建 MockWebAPI 实例
-        auto api = std::make_shared<MockWebAPI>();
-        spdlog::info("Created MockWebAPI instance");
+        // 创建 RealWebAPI 实例
+        auto api = std::make_shared<RealWebAPI>();
+        spdlog::info("Created RealWebAPI instance");
 
         // 创建 WebServer 实例
         xxcnc::web::WebServer server(api);
         
         // 设置静态目录和上传目录
-        auto static_dir = std::filesystem::current_path() / "static";
-        spdlog::info("Static directory path: {}", static_dir.string());
-        std::cout << "Static directory path: " << static_dir.string() << std::endl;
-
-        if (!std::filesystem::exists(static_dir)) {
-            spdlog::error("Static directory not found: {}", static_dir.string());
-            std::cerr << "Static directory not found: " << static_dir.string() << std::endl;
+        std::filesystem::path static_dir;
+        std::filesystem::path uploads_dir;
+        
+        // 获取可执行文件路径
+        std::filesystem::path exe_path;
+        try {
+            #ifdef _WIN32
+            char path[MAX_PATH] = { 0 };
+            GetModuleFileNameA(NULL, path, MAX_PATH);
+            exe_path = std::filesystem::path(path).parent_path();
+            static_dir = exe_path / "static";  // 可执行文件目录下的static
+            uploads_dir = exe_path / "uploads"; // 可执行文件目录下的uploads
+            spdlog::info("可执行文件路径: {}", exe_path.string());
+            #else
+            // 在非Windows系统上使用当前路径
+            exe_path = std::filesystem::current_path();
+            static_dir = exe_path / "static";
+            uploads_dir = exe_path / "uploads";
+            #endif
             
-            // 查找可能的静态目录位置
-            std::cout << "Looking for static directory..." << std::endl;
-            for (const auto& entry : std::filesystem::directory_iterator(std::filesystem::current_path())) {
-                std::cout << "Found: " << entry.path().string() << std::endl;
+            spdlog::info("静态文件目录: {}", static_dir.string());
+            spdlog::info("上传文件目录: {}", uploads_dir.string());
+        } catch (const std::exception& e) {
+            spdlog::error("无法获取可执行文件路径: {}", e.what());
+            std::cerr << "无法获取可执行文件路径: " << e.what() << std::endl;
+            return 1;
+        }
+        
+        // 检查静态文件目录是否存在
+        if (!std::filesystem::exists(static_dir)) {
+            spdlog::error("找不到静态文件目录: {}", static_dir.string());
+            std::cerr << "找不到静态文件目录: " << static_dir.string() << std::endl;
+            
+            // 输出可执行文件目录内容
+            spdlog::info("可执行文件目录内容:");
+            for (const auto& entry : std::filesystem::directory_iterator(exe_path)) {
+                spdlog::info("  - {}", entry.path().string());
             }
             
             return 1;
         }
-        spdlog::info("Static directory exists");
-
+        
+        spdlog::info("使用静态文件目录: {}", static_dir.string());
+        std::cout << "使用静态文件目录: " << static_dir.string() << std::endl;
+        
         server.setStaticDir(static_dir.string());
-        spdlog::info("Set static directory: {}", static_dir.string());
-        std::cout << "Set static directory: " << static_dir.string() << std::endl;
         
-        // 设置uploads目录
-        auto uploads_dir = std::filesystem::current_path() / "uploads";
-        spdlog::info("Uploads directory path: {}", uploads_dir.string());
-        std::cout << "Uploads directory path: " << uploads_dir.string() << std::endl;
-        
+        // 确保uploads目录存在
         if (!std::filesystem::exists(uploads_dir)) {
-            spdlog::error("Uploads directory not found, creating it: {}", uploads_dir.string());
-            std::cout << "Uploads directory not found, creating it: " << uploads_dir.string() << std::endl;
+            spdlog::info("创建uploads目录: {}", uploads_dir.string());
             try {
                 std::filesystem::create_directories(uploads_dir);
-                spdlog::info("Created uploads directory: {}", uploads_dir.string());
-                std::cout << "Created uploads directory: " << uploads_dir.string() << std::endl;
             } catch (const std::exception& e) {
-                spdlog::error("Failed to create uploads directory: {}", e.what());
-                std::cerr << "Failed to create uploads directory: " << e.what() << std::endl;
+                spdlog::error("创建uploads目录失败: {}", e.what());
+                std::cerr << "创建uploads目录失败: " << e.what() << std::endl;
                 return 1;
             }
         }
-        spdlog::info("Uploads directory exists: {}", uploads_dir.string());
-        std::cout << "Uploads directory exists: " << uploads_dir.string() << std::endl;
-
+        
         server.setEnableCors(true);
         spdlog::info("Enabled CORS");
 

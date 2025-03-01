@@ -85,16 +85,14 @@ bool MotionController::moveLinear(const std::map<std::string, double>& targetPos
     // 设置插补参数
     core::motion::InterpolationEngine::InterpolationParams params;
     params.feedRate = feedRate;
-    params.maxVelocity = std::min({
-        xAxis != axes_.end() ? xAxis->second->getMaxVelocity() : 1e6,
-        yAxis != axes_.end() ? yAxis->second->getMaxVelocity() : 1e6,
-        zAxis != axes_.end() ? zAxis->second->getMaxVelocity() : 1e6
-    });
-    params.acceleration = std::min({
-        xAxis != axes_.end() ? xAxis->second->getMaxAcceleration() : 1e6,
-        yAxis != axes_.end() ? yAxis->second->getMaxAcceleration() : 1e6,
-        zAxis != axes_.end() ? zAxis->second->getMaxAcceleration() : 1e6
-    });
+    params.maxVelocity = std::min({1e6,
+        (xAxis != axes_.end()) ? xAxis->second->getMaxVelocity() : 1e6,
+        (yAxis != axes_.end()) ? yAxis->second->getMaxVelocity() : 1e6,
+        (zAxis != axes_.end()) ? zAxis->second->getMaxVelocity() : 1e6});
+    params.acceleration = std::min({1e6,
+        (xAxis != axes_.end()) ? xAxis->second->getMaxAcceleration() : 1e6,
+        (yAxis != axes_.end()) ? yAxis->second->getMaxAcceleration() : 1e6,
+        (zAxis != axes_.end()) ? zAxis->second->getMaxAcceleration() : 1e6});
     params.deceleration = params.acceleration;
 
     // 使用基于时间的插补器规划路径

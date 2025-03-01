@@ -19,6 +19,10 @@ add_library(xxcnc
     core/motion/TimeBasedInterpolator.cpp
     # 轴控制模块
     core/motion/AxisController.cpp
+    # 轴实现
+    core/motion/Axis.cpp
+    # 运动控制器
+    core/motion/MotionController.cpp
 )
 
 # 设置包含目录
